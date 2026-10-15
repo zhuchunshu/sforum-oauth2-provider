@@ -1,7 +1,8 @@
 name: release
 
 # 推 v* 标签即发布：每个目标平台各自构建二进制、刷新摘要、打成 SForum 包并挂到 Release。
-# 也可用 workflow_dispatch 手动跑（会先做校验与构建，不创建 Release，除非填了 tag）。
+# 仓库根是「外部扩展源根」，扩展包位于 plugins/sforum-oauth2-provider。
+# 也可用 workflow_dispatch 手动跑（只做校验与构建，不创建 Release）。
 
 on:
   push:
@@ -19,6 +20,7 @@ permissions:
 env:
   SFORUM_REPOSITORY: zhuchunshu/SForum
   SFORUM_REF: ${{ github.event.inputs.sforum_ref || 'main' }}
+  PACKAGE_DIR: plugins/sforum-oauth2-provider
   PACKAGE_SLUG: sforum-oauth2-provider
 
 jobs:
@@ -38,15 +40,15 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: plugin/backend/go.mod
-          cache-dependency-path: plugin/backend/go.sum
+          go-version-file: plugin/${{ env.PACKAGE_DIR }}/backend/go.mod
+          cache-dependency-path: plugin/${{ env.PACKAGE_DIR }}/backend/go.sum
 
       - name: Point SDK replace at the checked-out framework
-        working-directory: plugin/backend
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
         run: go mod edit -replace github.com/zhuchunshu/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
       - name: Backend vet and unit tests
-        working-directory: plugin/backend
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
         run: |
           go vet ./...
           go test ./...
@@ -55,7 +57,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          MANIFEST_VERSION="$(python3 -c "import json;print(json.load(open('plugin/sforum.extension.json'))['version'])")"
+          MANIFEST_VERSION="$(python3 -c "import json;print(json.load(open('plugin/$PACKAGE_DIR/sforum.extension.json'))['version'])")"
           echo "tag=$TAG_VERSION manifest=$MANIFEST_VERSION"
           if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
             echo "::error title=版本不一致::标签 v$TAG_VERSION 与 sforum.extension.json 的 version ($MANIFEST_VERSION) 不一致。"
@@ -65,12 +67,11 @@ jobs:
       - name: Build host binary and run host contract checks
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/plugin/backend"
-          (cd plugin/backend && CGO_ENABLED=0 go build -trimpath -o "$GITHUB_WORKSPACE/plugin/backend/plugin" ./)
+          (cd "plugin/$PACKAGE_DIR/backend" && CGO_ENABLED=0 go build -trimpath -o "$GITHUB_WORKSPACE/plugin/$PACKAGE_DIR/backend/plugin" ./)
           cd sforum/apps/api
-          go run ./cmd/sforum extension digest --write "$GITHUB_WORKSPACE/plugin"
-          go run ./cmd/sforum extension validate "$GITHUB_WORKSPACE/plugin"
-          go run ./cmd/sforum extension test "$GITHUB_WORKSPACE/plugin"
+          go run ./cmd/sforum extension digest --write "$GITHUB_WORKSPACE/plugin/$PACKAGE_DIR"
+          go run ./cmd/sforum extension validate "$GITHUB_WORKSPACE/plugin/$PACKAGE_DIR"
+          go run ./cmd/sforum extension test "$GITHUB_WORKSPACE/plugin/$PACKAGE_DIR"
 
   build:
     needs: verify
@@ -97,11 +98,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: plugin/backend/go.mod
-          cache-dependency-path: plugin/backend/go.sum
+          go-version-file: plugin/${{ env.PACKAGE_DIR }}/backend/go.mod
+          cache-dependency-path: plugin/${{ env.PACKAGE_DIR }}/backend/go.sum
 
       - name: Point SDK replace at the checked-out framework
-        working-directory: plugin/backend
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
         run: go mod edit -replace github.com/zhuchunshu/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
       - name: Build ${{ matrix.goos }}/${{ matrix.goarch }} package
@@ -110,20 +111,17 @@ jobs:
           set -euo pipefail
           STAGE="$GITHUB_WORKSPACE/stage"
           rm -rf "$STAGE"; mkdir -p "$STAGE"
-          # 只复制运行时需要的文件：源码、CI、脚本都不进发布包。
-          # 注意：排除项要用 / 前缀锚定到仓库根，否则 'dist/' 会连
-          # frontend/admin/dist（运行时前端制品）一起排掉。
+          # 只复制运行时需要的文件：Go 源码、go.mod/sum、旧的构建产物都不进发布包。
           rsync -a \
-            --exclude '/.git/' --exclude '/.github/' --exclude '/.build/' --exclude '/dist/' \
-            --exclude '/docs/' --exclude '/scripts/' --exclude '/backend/*.go' --exclude '/backend/go.mod' \
-            --exclude '/backend/go.sum' --exclude '/backend/plugin' --exclude '/backend/plugin.exe' \
-            "$GITHUB_WORKSPACE/plugin/" "$STAGE/"
+            --exclude '/backend/*.go' --exclude '/backend/go.mod' --exclude '/backend/go.sum' \
+            --exclude '/backend/plugin' --exclude '/backend/plugin.exe' \
+            "plugin/$PACKAGE_DIR/" "$STAGE/"
 
-          (cd plugin/backend && \
+          (cd "plugin/$PACKAGE_DIR/backend" && \
             CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build -trimpath -ldflags "-s -w" -o "$STAGE/backend/plugin" ./)
 
-          VERSION="$(python3 -c "import json;print(json.load(open('plugin/sforum.extension.json'))['version'])")"
+          VERSION="$(python3 -c "import json;print(json.load(open('plugin/$PACKAGE_DIR/sforum.extension.json'))['version'])")"
           ASSET="${PACKAGE_SLUG}_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
@@ -171,9 +169,7 @@ jobs:
             echo '## 安装'
             echo
             echo '1. 下载与服务器平台匹配的压缩包（`linux_amd64` / `linux_arm64` / `darwin_arm64` / `darwin_amd64`）。'
-            echo '2. 放到 SForum 的扩展安装位置之一：'
-            echo '   - 上传：后台「插件管理 → 安装插件」选择 zip；'
-            echo '   - 或解压到外部源码根：`<EXTERNAL_EXTENSION_ROOTS>/plugins/sforum-oauth2-provider/`。'
+            echo '2. 装到 SForum：后台「插件管理 → 安装插件」上传 zip；或解压到某个外部源根的 `plugins/sforum-oauth2-provider/`（即本仓库的目录布局）。'
             echo '3. 后台启用 **OAuth2 Provider**，按宿主提示完成一次 exact-artifact `super_admin` 信任确认。'
             echo '4. 需要“管理全部应用”的角色，到「角色权限」授予 `sforum.oauth2-provider.manage_clients`。'
             echo

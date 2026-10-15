@@ -34,7 +34,7 @@
     "url": "https://github.com/zhuchunshu/sforum"
   },
   "backend": {
-    "digest": "c33466bf36cf5b876a6eba2f89b4f0216c82d49b7eab4a305db60c2416c48678",
+    "digest": "f2bbdf52e1cc8c2df3316cc2308d44f70eb714d69174ec1309a5a538a8fd9720",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -120,7 +120,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "c33466bf36cf5b876a6eba2f89b4f0216c82d49b7eab4a305db60c2416c48678",
+      "digest": "f2bbdf52e1cc8c2df3316cc2308d44f70eb714d69174ec1309a5a538a8fd9720",
       "id": "sforum.oauth2-provider.file.backend",
       "kind": "executable",
       "path": "backend/plugin"

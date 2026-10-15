@@ -19,9 +19,10 @@
 
 1. 从 [Releases](https://github.com/zhuchunshu/sforum-oauth2-provider/releases) 下载与服务器平台匹配的压缩包
    （`linux_amd64` / `linux_arm64` / `darwin_arm64` / `darwin_amd64`），校验 `sha256sum -c SHA256SUMS`。
-2. 装到 SForum：
-   - **上传**：后台「插件管理 → 安装插件」选择 zip；或
-   - **外部源码根**：解压到 `<EXTERNAL_EXTENSION_ROOTS>/plugins/sforum-oauth2-provider/`，然后重启 API。
+2. 装到 SForum（两种方式任选）：
+   - **上传**：后台「插件管理 → 安装插件」选择 zip；
+   - **外部源**：解压到某个外部源根的 `plugins/sforum-oauth2-provider/`，然后重启 API；
+     或者直接把本仓库路径加进 `EXTERNAL_EXTENSION_ROOTS`（本仓库根就是源根）。
 3. 后台启用 **OAuth2 Provider**，按宿主提示完成一次 exact-artifact `super_admin` 信任确认
    （`授权当前精确制品` → `确认并启用`）。
 4. 需要“管理全部应用”的角色，到「角色权限」授予 `sforum.oauth2-provider.manage_clients`。
@@ -158,10 +159,32 @@ curl "https://站点域名/api/oauth/userinfo?access_token=sfoa_xxx"
 | --- | --- |
 | ![新建应用](docs/images/admin-create-modal.png) | ![窄屏](docs/images/admin-clients-mobile.png) |
 
+## 目录布局
+
+仓库根就是 SForum 的**外部扩展源根**，扩展包本体放在 `plugins/` 下（框架约定的集合布局）：
+
+```text
+sforum-oauth2-provider/
+├── plugins/sforum-oauth2-provider/   ← 扩展包（sforum.extension.json、schemas、openapi、frontend、backend）
+├── scripts/prepare-package.sh         ← 构建本机二进制 + 刷新摘要 + 宿主校验
+├── docs/images/                       ← README 截图
+└── .github/workflows/                 ← ci.yml / release.yml
+```
+
+因此既可以从 Release 装 zip，也可以把这个仓库直接挂成外部源（无需拷贝、无需软链）：
+
+```bash
+# .env
+EXTERNAL_EXTENSION_ROOTS=/已有源,…/sforum-oauth2-provider
+```
+
+注意：宿主会拒绝重复扩展 id（同一 id 出现在两个源会冲突），也会拒绝包内的符号链接
+（`extension package: symbolic links are not allowed`），所以不要把仓库软链到别处、也不要保留第二份副本。
+
 ## 本地开发
 
-本仓库根目录**就是** SForum 扩展包（`sforum.extension.json` 在根）。后端是嵌套 Go module，
-通过本地检出解析宿主 SDK（`apps/api` 尚未发布为 Go module），约定两个仓库同级：
+后端是嵌套 Go module，通过本地检出解析宿主 SDK（`apps/api` 尚未发布为 Go module），
+约定两个仓库同级：
 
 ```text
 Code/github/
@@ -171,17 +194,15 @@ Code/github/
 
 ```bash
 # 后端：编译 + 单测
-cd backend && go vet ./... && go test ./...
+cd plugins/sforum-oauth2-provider/backend && go vet ./... && go test ./...
 
-# 构建可执行文件、刷新摘要、跑宿主校验（需要同级 SForum 检出）
+# 构建可执行文件、刷新摘要、跑宿主校验（需要同级 SForum 检出；SFORUM_DIR=… 可覆盖）
 ./scripts/prepare-package.sh
-
-# 同步到 SForum 的本地开发插件目录，便于在开发站点启用调试
-./scripts/dev-sync.sh
 ```
 
-改完源码（含前端 `.mjs`/`.css` 与 `schemas/*.json`）后必须重跑 `scripts/prepare-package.sh`：
-宿主以 exact-artifact 校验哈希，摘要不匹配的包会被拒绝启用。
+改了源码（含前端 `.mjs`/`.css` 与 `schemas/*.json`）后必须重跑 `scripts/prepare-package.sh`：
+宿主以 exact-artifact 校验哈希，摘要不匹配的包会被拒绝启用。若 SForum 已把本仓库挂成外部源，
+重启 API 后会把它暂存为候选制品，按「禁用 → 升级 → 启用」切过去即可。
 
 ## 发布
 

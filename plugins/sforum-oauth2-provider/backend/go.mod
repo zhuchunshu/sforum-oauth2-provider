@@ -33,8 +33,9 @@ require (
 // SForum 的 apps/api 尚未作为 Go module 发布（tag 形如 v3.x，不是 apps/api/vX），
 // 因此插件通过本地检出解析 SDK。默认约定：本仓库与 SForum 检出目录同级：
 //
-//   Code/github/sforum-oauth2-provider   ← 本仓库
-//   Code/github/SForum                   ← 框架检出
+//   Code/github/sforum-oauth2-provider                      ← 本仓库（仓库根就是外部源根）
+//   Code/github/sforum-oauth2-provider/plugins/…             ← 扩展包本体
+//   Code/github/SForum                                       ← 框架检出
 //
 // CI 会用 `go mod edit -replace` 覆盖为它自己的检出路径（见 .github/workflows）。
-replace github.com/zhuchunshu/sforum/apps/api => ../../SForum/apps/api
+replace github.com/zhuchunshu/sforum/apps/api => ../../../../SForum/apps/api

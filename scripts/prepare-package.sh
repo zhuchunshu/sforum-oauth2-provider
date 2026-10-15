@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 构建本机平台的插件二进制、刷新包摘要并跑一遍宿主契约校验。
-# 用法：scripts/prepare-package.sh [extension-root]（默认仓库根目录）
+# 用法：scripts/prepare-package.sh [extension-root]（默认 plugins/sforum-oauth2-provider）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG="${1:-$ROOT}"
+PKG="${1:-$ROOT/plugins/sforum-oauth2-provider}"
 SFORUM_DIR="${SFORUM_DIR:-$(cd "$ROOT/.." && pwd)/SForum}"
 
 if [ ! -d "$SFORUM_DIR/apps/api" ]; then
