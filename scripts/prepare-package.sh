@@ -17,12 +17,12 @@ echo "==> 构建 backend/plugin"
 (cd "$PKG/backend" && go build -trimpath -o "$PKG/backend/plugin" ./)
 
 echo "==> 刷新包摘要（extension digest --write）"
-(cd "$SFORUM_DIR" && go run ./cmd/sforum extension digest --write "$PKG")
+(cd "$SFORUM_DIR/apps/api" && go run ./cmd/sforum extension digest --write "$PKG")
 
 echo "==> 校验清单（extension validate）"
-(cd "$SFORUM_DIR" && go run ./cmd/sforum extension validate "$PKG")
+(cd "$SFORUM_DIR/apps/api" && go run ./cmd/sforum extension validate "$PKG")
 
 echo "==> 宿主契约检查（extension test）"
-(cd "$SFORUM_DIR" && go run ./cmd/sforum extension test "$PKG")
+(cd "$SFORUM_DIR/apps/api" && go run ./cmd/sforum extension test "$PKG")
 
 echo "完成：$PKG"
