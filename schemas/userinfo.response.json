@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.userinfo.response@1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sub", "username", "displayName", "status", "scope", "clientId"],
+      "properties": {
+        "sub": { "type": "string" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "status": { "type": "string" },
+        "scope": { "type": "string" },
+        "clientId": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": { "type": "string" },
+        "error_description": { "type": "string" }
+      }
+    }
+  ]
+}

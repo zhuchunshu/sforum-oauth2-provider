@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.mutation.response@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "revokedTokens": { "type": "integer" },
+    "revokedAuthorizations": { "type": "integer" },
+    "error": { "type": "string" }
+  }
+}

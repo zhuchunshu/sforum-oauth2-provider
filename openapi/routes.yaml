@@ -1,0 +1,388 @@
+openapi: 3.1.0
+info:
+  title: SForum OAuth2 Provider
+  version: 1.0.0
+paths:
+  /api/oauth/authorizations:
+    get:
+      operationId: sforum.oauth2-provider.api.authorizationsList
+      x-sforum-route-id: sforum.oauth2-provider.route.authorizations-list
+      x-sforum-contract-version: sforum.oauth2-provider.route.authorizations-list@1
+      x-sforum-guard: core.guard.login
+      x-sforum-response-schema: sforum.oauth2-provider.route.authorizations.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/authorizations.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/authorizations.response.json'
+  /api/oauth/authorizations/revoke:
+    post:
+      operationId: sforum.oauth2-provider.api.authorizationsRevoke
+      x-sforum-route-id: sforum.oauth2-provider.route.authorizations-revoke
+      x-sforum-contract-version: sforum.oauth2-provider.route.authorizations-revoke@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-delete.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/client-delete.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.mutation.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/mutation.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/mutation.response.json'
+  /api/oauth/authorize:
+    get:
+      operationId: sforum.oauth2-provider.api.authorize
+      x-sforum-route-id: sforum.oauth2-provider.route.authorize
+      x-sforum-contract-version: sforum.oauth2-provider.route.authorize@1
+      x-sforum-guard: core.guard.public
+      x-sforum-response-schema: sforum.oauth2-provider.route.authorize.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/authorize.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/authorize.response.json'
+  /api/oauth/clients:
+    get:
+      operationId: sforum.oauth2-provider.api.clientsList
+      x-sforum-route-id: sforum.oauth2-provider.route.clients-list
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-list@1
+      x-sforum-guard: core.guard.login
+      x-sforum-response-schema: sforum.oauth2-provider.route.clients.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/clients.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/clients.response.json'
+  /api/oauth/clients/create:
+    post:
+      operationId: sforum.oauth2-provider.api.clientsCreate
+      x-sforum-route-id: sforum.oauth2-provider.route.clients-create
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-create@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/client-write.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+  /api/oauth/clients/delete:
+    post:
+      operationId: sforum.oauth2-provider.api.clientsDelete
+      x-sforum-route-id: sforum.oauth2-provider.route.clients-delete
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-delete@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-delete.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/client-delete.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.mutation.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/mutation.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/mutation.response.json'
+  /api/oauth/clients/rotate-secret:
+    post:
+      operationId: sforum.oauth2-provider.api.clientsSecretRotate
+      x-sforum-route-id: sforum.oauth2-provider.route.clients-secret-rotate
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-secret-rotate@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-delete.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/client-delete.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+  /api/oauth/clients/update:
+    post:
+      operationId: sforum.oauth2-provider.api.clientsUpdate
+      x-sforum-route-id: sforum.oauth2-provider.route.clients-update
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-update@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/client-write.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/client-write.response.json'
+  /api/oauth/consent:
+    get:
+      operationId: sforum.oauth2-provider.api.consentPage
+      x-sforum-route-id: sforum.oauth2-provider.route.consent-page
+      x-sforum-contract-version: sforum.oauth2-provider.route.consent-page@1
+      x-sforum-guard: core.guard.login
+      x-sforum-response-schema: sforum.oauth2-provider.route.consent-page.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-page.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-page.response.json'
+  /api/oauth/consent/decision:
+    post:
+      operationId: sforum.oauth2-provider.api.consentDecision
+      x-sforum-route-id: sforum.oauth2-provider.route.consent-decision
+      x-sforum-contract-version: sforum.oauth2-provider.route.consent-decision@1
+      x-sforum-guard: core.guard.login
+      x-sforum-request-schema: sforum.oauth2-provider.route.consent-decision.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/consent-decision.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.consent-decision.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-decision.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-decision.response.json'
+  /api/oauth/consent/summary:
+    get:
+      operationId: sforum.oauth2-provider.api.consentSummary
+      x-sforum-route-id: sforum.oauth2-provider.route.consent-summary
+      x-sforum-contract-version: sforum.oauth2-provider.route.consent-summary@1
+      x-sforum-guard: core.guard.login
+      x-sforum-response-schema: sforum.oauth2-provider.route.consent-summary.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-summary.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/consent-summary.response.json'
+  /api/oauth/csrf:
+    get:
+      operationId: sforum.oauth2-provider.api.csrf
+      x-sforum-route-id: sforum.oauth2-provider.route.csrf
+      x-sforum-contract-version: sforum.oauth2-provider.route.csrf@1
+      x-sforum-guard: core.guard.public
+      x-sforum-response-schema: sforum.oauth2-provider.route.csrf.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/csrf.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/csrf.response.json'
+  /api/oauth/introspect:
+    post:
+      operationId: sforum.oauth2-provider.api.introspect
+      x-sforum-route-id: sforum.oauth2-provider.route.introspect
+      x-sforum-contract-version: sforum.oauth2-provider.route.introspect@1
+      x-sforum-guard: core.guard.public
+      x-sforum-request-schema: sforum.oauth2-provider.route.introspect.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/introspect.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.introspect.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/introspect.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/introspect.response.json'
+  /api/oauth/revoke:
+    post:
+      operationId: sforum.oauth2-provider.api.revoke
+      x-sforum-route-id: sforum.oauth2-provider.route.revoke
+      x-sforum-contract-version: sforum.oauth2-provider.route.revoke@1
+      x-sforum-guard: core.guard.public
+      x-sforum-request-schema: sforum.oauth2-provider.route.revoke.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/revoke.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.revoke.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/revoke.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/revoke.response.json'
+  /api/oauth/token:
+    post:
+      operationId: sforum.oauth2-provider.api.token
+      x-sforum-route-id: sforum.oauth2-provider.route.token
+      x-sforum-contract-version: sforum.oauth2-provider.route.token@1
+      x-sforum-guard: core.guard.public
+      x-sforum-request-schema: sforum.oauth2-provider.route.token.request@1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/token.request.json'
+      x-sforum-response-schema: sforum.oauth2-provider.route.token.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/token.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/token.response.json'
+  /api/oauth/userinfo:
+    get:
+      operationId: sforum.oauth2-provider.api.userinfo
+      x-sforum-route-id: sforum.oauth2-provider.route.userinfo
+      x-sforum-contract-version: sforum.oauth2-provider.route.userinfo@1
+      x-sforum-guard: core.guard.public
+      x-sforum-response-schema: sforum.oauth2-provider.route.userinfo.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/userinfo.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/userinfo.response.json'

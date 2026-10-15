@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.clients.response@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "clients",
+    "canManageAll",
+    "allowUserClients"
+  ],
+  "properties": {
+    "clients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "name",
+          "description",
+          "clientType",
+          "redirectUris",
+          "scopes",
+          "ownerUserId",
+          "ownerName",
+          "createdAt"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "clientType": {
+            "type": "string",
+            "enum": [
+              "confidential",
+              "public"
+            ]
+          },
+          "redirectUris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ownerUserId": {
+            "type": "integer"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "type": "string"
+          },
+          "hasSecret": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "canManageAll": {
+      "type": "boolean"
+    },
+    "allowUserClients": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "string"
+    }
+  }
+}

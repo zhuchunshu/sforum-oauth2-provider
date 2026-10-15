@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.lifecycle.progress@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stepId", "state", "checkpoint"],
+  "properties": {
+    "stepId": { "type": "string" },
+    "state": { "type": "string" },
+    "checkpoint": { "type": "string" },
+    "completedUnits": { "type": "integer" },
+    "totalUnits": { "type": "integer" },
+    "message": { "type": "string" }
+  }
+}

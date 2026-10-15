@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "ui": {
+    "mode": "schema",
+    "layout": "tabs",
+    "tabs": [
+      {
+        "id": "tokens",
+        "label": { "zh-CN": "令牌", "en-US": "Tokens" },
+        "description": {
+          "zh-CN": "访问令牌与刷新令牌的有效期。修改后只影响新签发的令牌。",
+          "en-US": "Lifetime of access and refresh tokens. Changes apply to newly issued tokens only."
+        },
+        "groups": ["lifetime"]
+      },
+      {
+        "id": "access",
+        "label": { "zh-CN": "应用与授权", "en-US": "Apps and consent" },
+        "description": {
+          "zh-CN": "谁可以创建 OAuth2 应用，以及是否需要用户确认授权。",
+          "en-US": "Who may create OAuth2 apps and whether users must confirm consent."
+        },
+        "groups": ["access"]
+      }
+    ],
+    "groups": [
+      {
+        "id": "lifetime",
+        "label": { "zh-CN": "有效期", "en-US": "Lifetime" },
+        "columns": 1
+      },
+      {
+        "id": "access",
+        "label": { "zh-CN": "访问控制", "en-US": "Access control" },
+        "columns": 1
+      }
+    ],
+    "callouts": [
+      {
+        "id": "recommended-defaults",
+        "tone": "info",
+        "title": {
+          "zh-CN": "推荐默认值可直接使用",
+          "en-US": "The recommended defaults work as-is"
+        },
+        "body": {
+          "zh-CN": "默认值遵循 OAuth2 安全实践：授权码 10 分钟、访问令牌 1 小时、刷新令牌 30 天，必须确认授权，普通用户可以自助创建应用。需要恢复时点击页面上的「恢复默认值」。",
+          "en-US": "Defaults follow OAuth2 security practice: 10-minute authorization codes, 1-hour access tokens, 30-day refresh tokens, consent always required, and self-service app creation for signed-in users. Use Restore defaults on this page to return to them."
+        },
+        "tab": "tokens"
+      },
+      {
+        "id": "endpoint-hint",
+        "tone": "info",
+        "title": {
+          "zh-CN": "第三方应用接入地址",
+          "en-US": "Endpoints for third-party apps"
+        },
+        "body": {
+          "zh-CN": "授权端点 GET /api/oauth/authorize，令牌端点 POST /api/oauth/token，用户资料端点 GET /api/oauth/userinfo。第三方应用需先在本站创建 OAuth2 应用并登记回调地址。",
+          "en-US": "Authorization endpoint GET /api/oauth/authorize, token endpoint POST /api/oauth/token, userinfo endpoint GET /api/oauth/userinfo. Third-party apps must first register an OAuth2 application and redirect URI on this site."
+        },
+        "tab": "access"
+      }
+    ]
+  },
+  "fields": [
+    {
+      "key": "sforum.oauth2-provider.access_token_ttl",
+      "label": { "zh-CN": "访问令牌有效期（秒）", "en-US": "Access token lifetime (seconds)" },
+      "description": {
+        "zh-CN": "推荐 3600（1 小时）。过长的访问令牌会放大泄漏风险。",
+        "en-US": "Recommended 3600 (1 hour). Longer access tokens enlarge the impact of a leak."
+      },
+      "type": "number",
+      "default": "3600",
+      "placeholder": "3600",
+      "groupId": "lifetime"
+    },
+    {
+      "key": "sforum.oauth2-provider.refresh_token_ttl",
+      "label": { "zh-CN": "刷新令牌有效期（秒）", "en-US": "Refresh token lifetime (seconds)" },
+      "description": {
+        "zh-CN": "推荐 2592000（30 天）。刷新令牌可换取新的访问令牌，用户可在个人中心撤销。",
+        "en-US": "Recommended 2592000 (30 days). Refresh tokens mint new access tokens and can be revoked by the user."
+      },
+      "type": "number",
+      "default": "2592000",
+      "placeholder": "2592000",
+      "groupId": "lifetime"
+    },
+    {
+      "key": "sforum.oauth2-provider.authorization_code_ttl",
+      "label": { "zh-CN": "授权码有效期（秒）", "en-US": "Authorization code lifetime (seconds)" },
+      "description": {
+        "zh-CN": "推荐 600（10 分钟）。授权码只能使用一次。",
+        "en-US": "Recommended 600 (10 minutes). An authorization code is single-use."
+      },
+      "type": "number",
+      "default": "600",
+      "placeholder": "600",
+      "groupId": "lifetime"
+    },
+    {
+      "key": "sforum.oauth2-provider.allow_user_clients",
+      "label": { "zh-CN": "允许用户自助创建应用", "en-US": "Allow self-service app creation" },
+      "description": {
+        "zh-CN": "开启后，任何登录用户都可以在个人中心创建 OAuth2 应用；关闭后只有管理员可以创建。",
+        "en-US": "When on, any signed-in user may create OAuth2 apps; when off, only administrators can."
+      },
+      "type": "boolean",
+      "default": "true",
+      "groupId": "access"
+    },
+    {
+      "key": "sforum.oauth2-provider.require_consent",
+      "label": { "zh-CN": "必须确认授权", "en-US": "Require consent" },
+      "description": {
+        "zh-CN": "推荐开启。开启后用户首次授权某个应用时必须看到确认页面；关闭后仅在应用请求新权限时确认。",
+        "en-US": "Recommended on. Users see a consent page on first authorization; when off, consent is only requested for newly added scopes."
+      },
+      "type": "boolean",
+      "default": "true",
+      "groupId": "access"
+    },
+    {
+      "key": "sforum.oauth2-provider.allowed_scopes",
+      "label": { "zh-CN": "允许的权限范围", "en-US": "Allowed scopes" },
+      "description": {
+        "zh-CN": "以空格分隔。v1 支持 profile（读取用户名、昵称与账号状态）。",
+        "en-US": "Space-separated. v1 supports profile (read username, display name, and account status)."
+      },
+      "type": "text",
+      "default": "profile",
+      "placeholder": "profile",
+      "groupId": "access"
+    }
+  ]
+}

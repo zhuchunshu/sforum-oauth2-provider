@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.token.request@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["grant_type", "client_id"],
+  "properties": {
+    "grant_type": {
+      "type": "string",
+      "enum": ["authorization_code", "refresh_token"]
+    },
+    "client_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "client_secret": { "type": "string", "maxLength": 256 },
+    "code": { "type": "string", "maxLength": 256 },
+    "redirect_uri": { "type": "string", "maxLength": 2048 },
+    "code_verifier": { "type": "string", "minLength": 43, "maxLength": 128 },
+    "refresh_token": { "type": "string", "maxLength": 256 },
+    "scope": { "type": "string", "maxLength": 512 }
+  }
+}

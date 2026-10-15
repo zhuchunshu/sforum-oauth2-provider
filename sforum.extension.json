@@ -1,0 +1,564 @@
+{
+  "admin": {
+    "entry": "/clients",
+    "pages": [
+      {
+        "component": {
+          "apiVersion": 1,
+          "css": "frontend/admin/dist/clients.css",
+          "entry": "frontend/admin/dist/clients.mjs",
+          "id": "clients"
+        },
+        "description": "创建与管理第三方应用的 client_id、密钥与回调地址。",
+        "icon": "i-tabler-key",
+        "label": "OAuth2 应用",
+        "menu": true,
+        "order": 30,
+        "path": "/clients",
+        "permission": "sforum.oauth2-provider.manage_clients",
+        "view": "component"
+      },
+      {
+        "description": "令牌有效期与自助创建开关。",
+        "icon": "i-tabler-settings",
+        "label": "OAuth2 设置",
+        "menu": true,
+        "order": 40,
+        "path": "/settings",
+        "view": "settings"
+      }
+    ]
+  },
+  "author": {
+    "name": "SForum",
+    "url": "https://github.com/zhuchunshu/sforum"
+  },
+  "backend": {
+    "digest": "c33466bf36cf5b876a6eba2f89b4f0216c82d49b7eab4a305db60c2416c48678",
+    "entry": "backend/plugin",
+    "hostApiVersion": "sforum.host@2",
+    "protocolVersion": 2,
+    "rpc": "hashicorp-go-plugin"
+  },
+  "capabilities": [
+    "host.api",
+    "settings.own",
+    "users.read"
+  ],
+  "database": {
+    "backup": {
+      "required": true,
+      "strategy": "pg_dump"
+    },
+    "contractVersion": "sforum.oauth2-provider.database@1",
+    "grants": [
+      "own_schema"
+    ],
+    "retention": {
+      "days": 30,
+      "onDisable": "retain",
+      "onUninstall": "export"
+    },
+    "role": "sforum_oauth2_provider",
+    "schema": "sforum_oauth2_provider"
+  },
+  "description": "让 SForum 作为 OAuth2 授权服务器：第三方应用可通过授权码 + PKCE 获取访问令牌并读取用户资料。Host 仍然拥有账号与登录会话。",
+  "id": "sforum.oauth2-provider",
+  "includes": {
+    "langs": "manifest/langs",
+    "settings": "manifest/settings.json"
+  },
+  "lifecycle": {
+    "contractVersion": "sforum.oauth2-provider.lifecycle@1",
+    "disable": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.disable.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.disable.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    },
+    "enable": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.enable.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.enable.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    },
+    "install": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.install.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.install.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    },
+    "rollback": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.rollback.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.rollback.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    },
+    "uninstall": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.uninstall.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.uninstall.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    },
+    "upgrade": {
+      "checkpointSchema": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+      "execute": "sforum.oauth2-provider.lifecycle.upgrade.execute",
+      "plan": "sforum.oauth2-provider.lifecycle.upgrade.plan",
+      "progressSchema": "sforum.oauth2-provider.lifecycle.progress@1"
+    }
+  },
+  "manifestVersion": 3,
+  "name": "OAuth2 Provider",
+  "openapi": [
+    {
+      "contractVersion": "sforum.oauth2-provider.openapi.routes@1",
+      "digest": "8d0b104a79fff54f29d2f09213d3c4fe0cee8a2e9a3e3abfc00e6eed3c371866",
+      "id": "sforum.oauth2-provider.openapi.routes",
+      "namespace": "sforum.oauth2-provider.api",
+      "path": "openapi/routes.yaml"
+    }
+  ],
+  "packageFiles": [
+    {
+      "digest": "c33466bf36cf5b876a6eba2f89b4f0216c82d49b7eab4a305db60c2416c48678",
+      "id": "sforum.oauth2-provider.file.backend",
+      "kind": "executable",
+      "path": "backend/plugin"
+    },
+    {
+      "digest": "f0079311a35e472fd8c4a1681b46697a3b9aae72dd8f7a2ad27a1a243abb0490",
+      "id": "sforum.oauth2-provider.schema.consent-page-response",
+      "kind": "schema",
+      "path": "schemas/consent-page.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "1d40ecd0e6c163a9e7886c6f0becf8613244d3bce120fe5360743fdd511d965d",
+      "id": "sforum.oauth2-provider.schema.csrf-response",
+      "kind": "schema",
+      "path": "schemas/csrf.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "8f9504464e215e289e718afa21f89635abde36746c73601e799907973c55f922",
+      "id": "sforum.oauth2-provider.file.admin-clients",
+      "kind": "frontend",
+      "path": "frontend/admin/dist/clients.mjs"
+    },
+    {
+      "digest": "161907cd7a5dfcb96d0f474da89371847d057e1d7322a55703598b0274b8bbca",
+      "id": "sforum.oauth2-provider.asset.admin-clients-style",
+      "kind": "asset",
+      "path": "frontend/admin/dist/clients.css"
+    },
+    {
+      "digest": "15e2fc6c260a4aa240b64eddd346b78268ab981007b03a868e5131b901a9a01c",
+      "id": "sforum.oauth2-provider.schema.authorize-response",
+      "kind": "schema",
+      "path": "schemas/authorize.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "ae37a2e5b3d39778bba3ea7a44a6c21cf6d0e8451d2a75970a5fea7a88e340a8",
+      "id": "sforum.oauth2-provider.schema.consent-summary-response",
+      "kind": "schema",
+      "path": "schemas/consent-summary.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "0fbf590b0962956874405f49b008d84a5994c4e3acdb5e898270e37cc67c1263",
+      "id": "sforum.oauth2-provider.schema.consent-decision-request",
+      "kind": "schema",
+      "path": "schemas/consent-decision.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "480a1ecc503250af5cd73212d07bea2b036aaf3a076127c4bb076c6eda4b129c",
+      "id": "sforum.oauth2-provider.schema.consent-decision-response",
+      "kind": "schema",
+      "path": "schemas/consent-decision.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "8f3138d5fe4b4289f39f5e50d47fe81ef3c97d3ffcb13527a23b378182527c68",
+      "id": "sforum.oauth2-provider.schema.token-request",
+      "kind": "schema",
+      "path": "schemas/token.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "50a63a86c188c158b10c2cee2da38e62fabd09eacaa4148cd83ea9f98e283c72",
+      "id": "sforum.oauth2-provider.schema.token-response",
+      "kind": "schema",
+      "path": "schemas/token.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "bd90a8a2fd1dc29e10c7728c0c50d7e45a5e23691a4ea1eabf78ca1282d3c90e",
+      "id": "sforum.oauth2-provider.schema.userinfo-response",
+      "kind": "schema",
+      "path": "schemas/userinfo.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "794bdbbc9def185e756dc00ac47857e071788f9403d258a8d66f31b97de14745",
+      "id": "sforum.oauth2-provider.schema.revoke-request",
+      "kind": "schema",
+      "path": "schemas/revoke.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "9aea9454057a6ef177f033044ad05462b81c27d763df45d78006bd30346c31ac",
+      "id": "sforum.oauth2-provider.schema.revoke-response",
+      "kind": "schema",
+      "path": "schemas/revoke.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "121c31294f8292a35761095a4c59906d0ca6aa0dbedf5439887254cd464709ba",
+      "id": "sforum.oauth2-provider.schema.introspect-request",
+      "kind": "schema",
+      "path": "schemas/introspect.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "58e758690b604bfefb454223a79d7283795c055a9544cd7f091ca88d0ff396a8",
+      "id": "sforum.oauth2-provider.schema.introspect-response",
+      "kind": "schema",
+      "path": "schemas/introspect.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "0a1209f70419847011d0843a087ae24080ad28dd31374842f1e903829d164617",
+      "id": "sforum.oauth2-provider.schema.clients-response",
+      "kind": "schema",
+      "path": "schemas/clients.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "8792e93ff6e6ec8dd830341bd9810207f7b89242d0a3541542f39b8afb56efb0",
+      "id": "sforum.oauth2-provider.schema.client-write-request",
+      "kind": "schema",
+      "path": "schemas/client-write.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "fe2267dff0c697246ff5a05bce0c4be82eff74f9a4f597ad89b7d34a05f28918",
+      "id": "sforum.oauth2-provider.schema.client-write-response",
+      "kind": "schema",
+      "path": "schemas/client-write.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "525e1d1a7ab1b9c65435e79b2838832fc30f8ea177d2d181215b6053ab4e0290",
+      "id": "sforum.oauth2-provider.schema.client-delete-request",
+      "kind": "schema",
+      "path": "schemas/client-delete.request.json",
+      "version": "1"
+    },
+    {
+      "digest": "73f8dd2dd5199a9230b3503bc90420ccb5e9436c3940d2c2bad5f1472f0b3ac3",
+      "id": "sforum.oauth2-provider.schema.mutation-response",
+      "kind": "schema",
+      "path": "schemas/mutation.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "25bfa37df2694ff89c53bdb0eae5fe65da9babce91a9252f3583b452e8165da4",
+      "id": "sforum.oauth2-provider.schema.authorizations-response",
+      "kind": "schema",
+      "path": "schemas/authorizations.response.json",
+      "version": "1"
+    },
+    {
+      "digest": "e35ed5e77edddca7dd654a9389be8c545379cf684671d72e19619e54f50be876",
+      "id": "sforum.oauth2-provider.schema.lifecycle-progress",
+      "kind": "schema",
+      "path": "schemas/lifecycle.progress.json",
+      "version": "1"
+    },
+    {
+      "digest": "bf7ff60023d813759fda20d50d0c51d52fa53fed109c7256b1dde4f17dcf4767",
+      "id": "sforum.oauth2-provider.schema.lifecycle-checkpoint",
+      "kind": "schema",
+      "path": "schemas/lifecycle.checkpoint.json",
+      "version": "1"
+    },
+    {
+      "digest": "8d0b104a79fff54f29d2f09213d3c4fe0cee8a2e9a3e3abfc00e6eed3c371866",
+      "id": "sforum.oauth2-provider.file.openapi-routes",
+      "kind": "openapi",
+      "path": "openapi/routes.yaml"
+    }
+  ],
+  "permissionDefinitions": [
+    {
+      "assignmentPolicy": "host",
+      "contractVersion": "sforum.oauth2-provider.manage_clients@1",
+      "description": "查看、编辑、删除任意 OAuth2 应用，包括其他用户创建的应用。",
+      "key": "sforum.oauth2-provider.manage_clients",
+      "label": {
+        "en-US": "Manage all OAuth2 applications",
+        "zh-CN": "管理全部 OAuth2 应用"
+      },
+      "recommendedRoles": [
+        "administrator"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.authorize@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.authorize",
+      "id": "sforum.oauth2-provider.route.authorize",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/authorize",
+      "responseSchema": "sforum.oauth2-provider.route.authorize.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.consent-page@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.consent-page",
+      "id": "sforum.oauth2-provider.route.consent-page",
+      "methods": [
+        "GET"
+      ],
+      "mode": "stream",
+      "path": "/api/oauth/consent",
+      "responseSchema": "sforum.oauth2-provider.route.consent-page.response@1",
+      "timeoutMs": 15000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.csrf@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.csrf",
+      "id": "sforum.oauth2-provider.route.csrf",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/csrf",
+      "responseSchema": "sforum.oauth2-provider.route.csrf.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.consent-summary@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.consent-summary",
+      "id": "sforum.oauth2-provider.route.consent-summary",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/consent/summary",
+      "responseSchema": "sforum.oauth2-provider.route.consent-summary.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.consent-decision@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.consent-decision",
+      "id": "sforum.oauth2-provider.route.consent-decision",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/consent/decision",
+      "requestSchema": "sforum.oauth2-provider.route.consent-decision.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.consent-decision.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.token@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.token",
+      "id": "sforum.oauth2-provider.route.token",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/token",
+      "requestSchema": "sforum.oauth2-provider.route.token.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.token.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.userinfo@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.userinfo",
+      "id": "sforum.oauth2-provider.route.userinfo",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/userinfo",
+      "responseSchema": "sforum.oauth2-provider.route.userinfo.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.revoke@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.revoke",
+      "id": "sforum.oauth2-provider.route.revoke",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/revoke",
+      "requestSchema": "sforum.oauth2-provider.route.revoke.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.revoke.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.introspect@1",
+      "fallback": "closed",
+      "guard": "core.guard.public",
+      "handler": "sforum.oauth2-provider.route.introspect",
+      "id": "sforum.oauth2-provider.route.introspect",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/introspect",
+      "requestSchema": "sforum.oauth2-provider.route.introspect.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.introspect.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.clients-list@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.clients-list",
+      "id": "sforum.oauth2-provider.route.clients-list",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/clients",
+      "responseSchema": "sforum.oauth2-provider.route.clients.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.clients-create@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.clients-create",
+      "id": "sforum.oauth2-provider.route.clients-create",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/clients/create",
+      "requestSchema": "sforum.oauth2-provider.route.client-write.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.client-write.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.clients-update@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.clients-update",
+      "id": "sforum.oauth2-provider.route.clients-update",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/clients/update",
+      "requestSchema": "sforum.oauth2-provider.route.client-write.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.client-write.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.clients-delete@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.clients-delete",
+      "id": "sforum.oauth2-provider.route.clients-delete",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/clients/delete",
+      "requestSchema": "sforum.oauth2-provider.route.client-delete.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.mutation.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.clients-secret-rotate@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.clients-secret-rotate",
+      "id": "sforum.oauth2-provider.route.clients-secret-rotate",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/clients/rotate-secret",
+      "requestSchema": "sforum.oauth2-provider.route.client-delete.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.client-write.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.authorizations-list@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.authorizations-list",
+      "id": "sforum.oauth2-provider.route.authorizations-list",
+      "methods": [
+        "GET"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/authorizations",
+      "responseSchema": "sforum.oauth2-provider.route.authorizations.response@1",
+      "timeoutMs": 5000
+    },
+    {
+      "action": "add",
+      "contractVersion": "sforum.oauth2-provider.route.authorizations-revoke@1",
+      "fallback": "closed",
+      "guard": "core.guard.login",
+      "handler": "sforum.oauth2-provider.route.authorizations-revoke",
+      "id": "sforum.oauth2-provider.route.authorizations-revoke",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/api/oauth/authorizations/revoke",
+      "requestSchema": "sforum.oauth2-provider.route.client-delete.request@1",
+      "responseSchema": "sforum.oauth2-provider.route.mutation.response@1",
+      "timeoutMs": 5000
+    }
+  ],
+  "sforumVersion": "\u003e=0.1.0",
+  "type": "plugin",
+  "url": "https://github.com/zhuchunshu/sforum",
+  "version": "1.0.0"
+}

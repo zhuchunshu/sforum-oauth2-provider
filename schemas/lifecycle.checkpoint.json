@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.lifecycle.checkpoint@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stepId", "checkpoint"],
+  "properties": {
+    "stepId": { "type": "string" },
+    "checkpoint": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}

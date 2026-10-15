@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.client-delete.request@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["clientId"],
+  "properties": {
+    "clientId": { "type": "string", "minLength": 8, "maxLength": 128 }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.revoke.response@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["revoked"],
+  "properties": {
+    "revoked": { "type": "boolean" },
+    "error": { "type": "string" },
+    "errorDescription": { "type": "string" }
+  }
+}

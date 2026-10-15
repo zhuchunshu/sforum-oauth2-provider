@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.consent-decision.response@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": { "type": "string", "enum": ["redirect", "error"] },
+    "location": { "type": "string" },
+    "error": { "type": "string" },
+    "errorDescription": { "type": "string" }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.consent-page.response@1",
+  "description": "授权确认页的响应契约。该路由为 mode: stream（非 HTTP 模式），正文是不透明的 Protocol V2 数据块，因此 Host 不做 JSON body 校验；此声明用于路由注册表准入与契约披露。",
+  "type": "string",
+  "contentMediaType": "text/html",
+  "minLength": 1
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.csrf.response@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "csrfRequired"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "csrfRequired": { "type": "boolean" },
+    "tokenEndpoint": { "type": "string" },
+    "authorizationEndpoint": { "type": "string" },
+    "userinfoEndpoint": { "type": "string" }
+  }
+}

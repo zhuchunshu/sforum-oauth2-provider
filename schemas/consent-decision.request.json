@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.consent-decision.request@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "decision"],
+  "properties": {
+    "request": { "type": "string", "minLength": 8, "maxLength": 256 },
+    "decision": { "type": "string", "enum": ["allow", "deny"] },
+    "remember": { "type": "boolean" }
+  }
+}

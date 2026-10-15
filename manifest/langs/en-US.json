@@ -1,0 +1,4 @@
+{
+  "name": "OAuth2 Provider",
+  "description": "Let SForum act as an OAuth2 authorization server: third-party apps obtain tokens through authorization code + PKCE and read public profile data. Host still owns accounts and sessions."
+}
