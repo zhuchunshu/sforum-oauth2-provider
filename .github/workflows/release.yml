@@ -167,24 +167,23 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          cat > notes.md <<'NOTES'
-## 安装
-
-1. 下载与服务器平台匹配的压缩包（`linux_amd64` / `linux_arm64` / `darwin_arm64` / `darwin_amd64`）。
-2. 放到 SForum 的扩展安装位置之一：
-   - 上传：后台「插件管理 → 安装插件」选择 zip；
-   - 或解压到外部源码根：`<EXTERNAL_EXTENSION_ROOTS>/plugins/sforum-oauth2-provider/`。
-3. 后台启用 **OAuth2 Provider**，按宿主提示做一次 exact-artifact `super_admin` 信任确认。
-4. 需要“管理全部应用”的角色，到「角色权限」授予 `sforum.oauth2-provider.manage_clients`。
-
-每个压缩包内的清单摘要与其中可执行文件一一对应，跨平台包不可混用；校验：`sha256sum -c SHA256SUMS`。
-
-## 兼容性
-
-使用宿主 Protocol V2（`sforum.host@2`）与 Manifest V3，需要 SForum `>=0.1.0`。
-若启用失败，请对照 README 的「Host 约束」章节。
-
-NOTES
+          {
+            echo '## 安装'
+            echo
+            echo '1. 下载与服务器平台匹配的压缩包（`linux_amd64` / `linux_arm64` / `darwin_arm64` / `darwin_amd64`）。'
+            echo '2. 放到 SForum 的扩展安装位置之一：'
+            echo '   - 上传：后台「插件管理 → 安装插件」选择 zip；'
+            echo '   - 或解压到外部源码根：`<EXTERNAL_EXTENSION_ROOTS>/plugins/sforum-oauth2-provider/`。'
+            echo '3. 后台启用 **OAuth2 Provider**，按宿主提示完成一次 exact-artifact `super_admin` 信任确认。'
+            echo '4. 需要“管理全部应用”的角色，到「角色权限」授予 `sforum.oauth2-provider.manage_clients`。'
+            echo
+            echo '每个压缩包内的清单摘要与其中可执行文件一一对应，跨平台包不可混用；校验：`sha256sum -c SHA256SUMS`。'
+            echo
+            echo '## 兼容性'
+            echo
+            echo '使用宿主 Protocol V2（`sforum.host@2`）与 Manifest V3，需要 SForum `>=0.1.0`。'
+            echo '若启用失败，请对照 README 的「Host 约束」章节。'
+          } > notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "$TAG" --notes-file notes.md
             gh release upload "$TAG" dist/* --clobber
