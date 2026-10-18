@@ -48,6 +48,9 @@
   「OAuth 应用」，同意页的撤销指引改为「设置 → OAuth 应用 → 已授权」。
 - 新增静态回归测试 `TestPublicPageIsLoginAccessible`，锁住页面 `access=login` 与导航项无
   permission；组件契约 `component.apps@21` → `@22`（L2 制品内容变化，宿主升级校验要求同步提升）。
+- CI 与 Release 的 `SFORUM_REF` 钉到宿主 `feat/extension-host-v2-surfaces` 分支：本版依赖
+  `SelfEmailQueryRequest`、`attachments.extension.claim/release`、`admin.pages[].group` 与
+  stream 路由登录重定向，这些宿主提交尚未合入 `main`。合入后改回 `main` 即可。
 
 ### Fixed
 

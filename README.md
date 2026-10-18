@@ -374,6 +374,12 @@ cd plugins/sforum-oauth2-provider/backend && go vet ./... && go test ./...
 发布前请把 `sforum.extension.json` 的 `version` 提到与标签一致（例如 `1.0.1` ↔ `v1.0.1`）。
 Windows 未列入矩阵：宿主按清单 `backend/entry` 直接执行、不做 `.exe` 归一化，未经实机验证前不发布。
 
+CI 与 Release 都通过 `SFORUM_REF` 检出宿主框架。本版依赖宿主尚未合入 `main` 的扩展宿主面
+（`SelfEmailQueryRequest`、`attachments.extension.claim/release`、`admin.pages[].group`、
+stream 路由登录重定向），因此默认指向 `zhuchunshu/SForum` 的
+`feat/extension-host-v2-surfaces` 分支；这些提交合入 `main` 后，把 `.github/workflows/*.yml`
+里的 `SFORUM_REF` 改回 `main` 或钉到对应 tag/commit 即可。
+
 ## 数据与生命周期
 
 `own_schema`（`sforum_oauth2_provider`）下的表：`oauth_clients`、`oauth_requests`、`oauth_tokens`、

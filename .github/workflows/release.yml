@@ -12,14 +12,14 @@ on:
       sforum_ref:
         description: 构建所使用的 SForum 引用（tag / 分支 / commit）
         required: false
-        default: main
+        default: feat/extension-host-v2-surfaces
 
 permissions:
   contents: write
 
 env:
   SFORUM_REPOSITORY: zhuchunshu/SForum
-  SFORUM_REF: ${{ github.event.inputs.sforum_ref || 'main' }}
+  SFORUM_REF: ${{ github.event.inputs.sforum_ref || 'feat/extension-host-v2-surfaces' }}
   PACKAGE_DIR: plugins/sforum-oauth2-provider
   PACKAGE_SLUG: sforum-oauth2-provider
 
