@@ -1,0 +1,198 @@
+/* 接入说明页样式。
+ *
+ * 页面骨架由宿主模板 templates/oauth-docs.html SSR 输出（navbar / footer / 布局 / 主题
+ * 全归 Core），正文排版交给 Core 的 `.sf-prose`，卡片沿用 `.sf-card`。本文件只补三块
+ * Core 没给的东西：正文容器宽度、`.sf-prose` 缺失的表格排版、端点表的方法徽标。
+ * 颜色一律取 --sf-public-* token，明暗模式自动跟随站点。
+ *
+ * 标题写成 <p class="sfp-docs__title"> 而不是 <h1>：模板净化器会剥掉 data-*，而裸 <h1>
+ * 会命中宿主 `h1:not([data-slot="title"])` 的巨字号规则。
+ */
+
+.sfp-docs {
+  padding: 2rem 1rem 3rem;
+}
+
+/* 正文容器：比 Core 的 --narrow（760px）宽一档——文档里有 4 列表格与长代码行，
+   760px 会把路径列挤到换行。960px 仍留有舒适行宽，且与站点内容列同构。 */
+.sfp-docs__container {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .sfp-docs {
+    padding: 2.5rem 1.5rem 4rem;
+  }
+}
+
+.sfp-docs .sf-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sfp-docs__eyebrow {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sf-public-text-muted);
+}
+
+.sfp-docs__title {
+  margin: 0;
+  font-family: var(--sf-public-heading-font-family, inherit);
+  font-size: var(--sf-public-page-title-mobile-size, 1.75rem);
+  font-weight: var(--sf-public-page-title-weight, 700);
+  line-height: var(--sf-public-page-title-line-height, 1.25);
+  color: var(--sf-public-text);
+  letter-spacing: -0.02em;
+}
+
+.sfp-docs__lede {
+  margin: 0.25rem 0 0;
+  font-size: var(--sf-public-page-subtitle-size, 0.9375rem);
+  line-height: var(--sf-public-page-subtitle-line-height, 1.7);
+  color: var(--sf-public-text-secondary);
+  max-width: 62ch;
+}
+
+/* .sf-prose 自带上下留白，卡片内再叠一层会让首节离标题太远。 */
+.sfp-docs__prose {
+  margin-top: 1.25rem;
+}
+.sfp-docs__prose > :first-child {
+  margin-top: 0;
+}
+
+/* ---------- 表格：.sf-prose 不覆盖 table，这里按同一套 token 补 ---------- */
+/* 横向滚动交给外层 wrapper：表格本身保持正常 table 布局，
+   桌面下由单元格换行吸收长文案，窄屏下才出现横向滑动。 */
+.sfp-docs__scroll {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.sfp-docs__scroll .sfp-docs__table {
+  margin: 0;
+}
+.sfp-docs__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.sfp-docs__table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--sf-public-border);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sf-public-text-muted);
+}
+.sfp-docs__table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--sf-public-border);
+  color: var(--sf-public-text-secondary);
+  vertical-align: top;
+}
+.sfp-docs__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* 列宽：首列（方法 / scope / 错误码）收缩到内容宽，第三列（Guard / 授权 /
+   出现位置）给固定比例，其余列平分——fixed 布局下长文案换行，永不撑破卡片。 */
+.sfp-docs__table th:first-child,
+.sfp-docs__table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+  color: var(--sf-public-text);
+}
+.sfp-docs__table th:nth-child(3),
+.sfp-docs__table td:nth-child(3) {
+  width: 28%;
+}
+/* 端点表是 4 列，窄屏下 fixed 布局会把「说明」挤到一字一行；
+   给它一个最小宽度，窄屏改走 .sfp-docs__scroll 的横向滑动。 */
+.sfp-docs__table--endpoints {
+  min-width: 640px;
+}
+
+/* 端点表的路径列给固定比例并禁止折行：路径是可复制的标识，断成两行就废了。 */
+.sfp-docs__table--endpoints th:nth-child(2),
+.sfp-docs__table--endpoints td:nth-child(2) {
+  width: 34%;
+  white-space: nowrap;
+}
+.sfp-docs__table--endpoints td:nth-child(2) code {
+  white-space: nowrap;
+}
+
+/* 宿主把 table 单元格继承成 nowrap；这里显式放开，让长文案在列内换行。 */
+.sfp-docs__table th,
+.sfp-docs__table td {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* 端点表的方法徽标：中性，不用强调色抢正文。 */
+.sfp-docs__method {
+  display: inline-block;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.3125rem;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.65625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- 折叠区：插件自用端点 ---------- */
+.sfp-docs__fold {
+  margin: 1.25rem 0;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+}
+.sfp-docs__fold > summary {
+  padding: 0.75rem 0;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--sf-public-text-secondary);
+}
+.sfp-docs__fold > summary:hover {
+  color: var(--sf-public-text);
+}
+.sfp-docs__fold > summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--sf-accent-soft, var(--sf-public-surface-muted));
+  border-radius: 0.375rem;
+}
+.sfp-docs__fold[open] > summary {
+  border-bottom: 1px solid var(--sf-public-border);
+}
+.sfp-docs__fold .sfp-docs__table {
+  margin-top: 0;
+}
+
+.sfp-docs__foot {
+  margin: 1.5rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sf-public-border);
+  font-size: 0.75rem;
+  color: var(--sf-public-text-muted);
+}
+
+@media (min-width: 768px) {
+  .sfp-docs__title {
+    font-size: var(--sf-public-page-title-size, 2rem);
+  }
+}

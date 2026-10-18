@@ -1,33 +1,61 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sforum.oauth2-provider.route.client-write.response@1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["ok", "client"],
-  "properties": {
-    "ok": { "type": "boolean" },
-    "client": {
+  "$id": "sforum.oauth2-provider.route.client-write.response@5",
+  "oneOf": [
+    {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "clientId", "name", "description", "clientType",
-        "redirectUris", "scopes", "ownerUserId", "ownerName", "createdAt"
-      ],
+      "required": ["ok", "client"],
       "properties": {
-        "clientId": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "clientType": { "type": "string", "enum": ["confidential", "public"] },
-        "redirectUris": { "type": "array", "items": { "type": "string" } },
-        "scopes": { "type": "array", "items": { "type": "string" } },
-        "ownerUserId": { "type": "integer" },
-        "ownerName": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "lastUsedAt": { "type": "string" },
-        "hasSecret": { "type": "boolean" }
+        "ok": { "type": "boolean" },
+        "client": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clientId", "name", "description", "clientType",
+            "redirectUris", "scopes", "ownerUserId", "ownerName", "createdAt"
+          ],
+          "properties": {
+            "clientId": { "type": "string" },
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "clientType": { "type": "string", "enum": ["confidential", "public"] },
+            "logoUrl": { "type": "string" },
+            "attachmentPublicId": { "type": "string" },
+            "icon": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "pattern", "background", "color"],
+              "properties": {
+                "kind": { "type": "string", "enum": ["attachment", "url", "generated"] },
+                "url": { "type": "string" },
+                "pattern": { "type": "string", "pattern": "^[01]{25}$" },
+                "background": { "type": "string" },
+                "color": { "type": "string" }
+              }
+            },
+            "redirectUris": { "type": "array", "items": { "type": "string" } },
+            "scopes": { "type": "array", "items": { "type": "string" } },
+            "ownerUserId": { "type": "integer" },
+            "ownerName": { "type": "string" },
+            "createdAt": { "type": "string" },
+            "lastUsedAt": { "type": "string" },
+            "hasSecret": { "type": "boolean" }
+          }
+        },
+        "clientSecret": { "type": "string" },
+        "error": { "type": "string" }
       }
     },
-    "clientSecret": { "type": "string" },
-    "error": { "type": "string" }
-  }
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "error": { "type": "string" },
+        "errorDescription": { "type": "string" }
+      }
+    }
+  ]
 }

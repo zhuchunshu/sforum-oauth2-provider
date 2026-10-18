@@ -1,0 +1,25 @@
+{
+  "pages": [
+    {
+      "id": "sforum.oauth2-provider.page.apps",
+      "action": "add",
+      "path": "/settings/oauth-apps",
+      "template": "templates/oauth-apps.html",
+      "label": "OAuth 应用",
+      "access": "login",
+      "contract": "sforum.page.oauth2_provider_apps@1"
+    },
+    {
+      "id": "sforum.oauth2-provider.page.docs",
+      "action": "add",
+      "path": "/docs/oauth2-provider",
+      "label": "OAuth2 接入说明",
+      "access": "public",
+      "contract": "sforum.page.oauth2_provider_docs@1",
+      "template": "templates/oauth-docs.html"
+    }
+  ],
+  "skin": {
+    "css": []
+  }
+}

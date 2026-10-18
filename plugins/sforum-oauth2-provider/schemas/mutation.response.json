@@ -8,6 +8,7 @@
     "ok": { "type": "boolean" },
     "revokedTokens": { "type": "integer" },
     "revokedAuthorizations": { "type": "integer" },
-    "error": { "type": "string" }
+    "error": { "type": "string" },
+    "errorDescription": { "type": "string" }
   }
 }

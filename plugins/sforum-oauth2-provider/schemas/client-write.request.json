@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sforum.oauth2-provider.route.client-write.request@1",
+  "$id": "sforum.oauth2-provider.route.client-write.request@3",
   "type": "object",
   "additionalProperties": false,
   "required": ["name", "redirectUris"],
@@ -9,6 +9,9 @@
     "name": { "type": "string", "minLength": 1, "maxLength": 120 },
     "description": { "type": "string", "maxLength": 500 },
     "clientType": { "type": "string", "enum": ["confidential", "public"] },
+    "logoUrl": { "type": "string", "maxLength": 2048 },
+    "attachmentPublicId": { "type": "string", "maxLength": 128 },
+    "attachmentRevision": { "type": "string", "maxLength": 64 },
     "redirectUris": {
       "type": "array",
       "minItems": 1,

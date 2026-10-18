@@ -1,10 +1,21 @@
 # 构建产物：插件可执行文件按平台在本地产出，不入库（发布时由 CI 交叉编译并写入摘要）。
 # 路径锚定到仓库根：不加 / 的 dist/ 会连 frontend/admin/dist 一起忽略。
+/.build/
+/dist/
+# 插件包实际布局在 plugins/<包名>/backend/ 下；旧的根级路径保留以兼容历史检出。
+/plugins/*/backend/plugin
+/plugins/*/backend/plugin.exe
+/plugins/*/backend/backend
 /backend/plugin
 /backend/plugin.exe
 /backend/backend
-/.build/
-/dist/
+
+# demo 的本地配置（模板 demo/.env.example 入库）
+/demo/.env
+
+# 本地验证产物与内部计划草稿
+/.verification/
+/docs/plans/
 
 # 本地调试
 *.log

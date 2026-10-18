@@ -7,9 +7,9 @@ paths:
     get:
       operationId: sforum.oauth2-provider.api.authorizationsList
       x-sforum-route-id: sforum.oauth2-provider.route.authorizations-list
-      x-sforum-contract-version: sforum.oauth2-provider.route.authorizations-list@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.authorizations-list@5
       x-sforum-guard: core.guard.login
-      x-sforum-response-schema: sforum.oauth2-provider.route.authorizations.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.authorizations.response@5
       responses:
         "200":
           description: Successful response document
@@ -74,9 +74,9 @@ paths:
     get:
       operationId: sforum.oauth2-provider.api.clientsList
       x-sforum-route-id: sforum.oauth2-provider.route.clients-list
-      x-sforum-contract-version: sforum.oauth2-provider.route.clients-list@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-list@5
       x-sforum-guard: core.guard.login
-      x-sforum-response-schema: sforum.oauth2-provider.route.clients.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.clients.response@7
       responses:
         "200":
           description: Successful response document
@@ -94,16 +94,16 @@ paths:
     post:
       operationId: sforum.oauth2-provider.api.clientsCreate
       x-sforum-route-id: sforum.oauth2-provider.route.clients-create
-      x-sforum-contract-version: sforum.oauth2-provider.route.clients-create@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-create@5
       x-sforum-guard: core.guard.login
-      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@1
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@3
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '../schemas/client-write.request.json'
-      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@5
       responses:
         "200":
           description: Successful response document
@@ -148,7 +148,7 @@ paths:
     post:
       operationId: sforum.oauth2-provider.api.clientsSecretRotate
       x-sforum-route-id: sforum.oauth2-provider.route.clients-secret-rotate
-      x-sforum-contract-version: sforum.oauth2-provider.route.clients-secret-rotate@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-secret-rotate@5
       x-sforum-guard: core.guard.login
       x-sforum-request-schema: sforum.oauth2-provider.route.client-delete.request@1
       requestBody:
@@ -157,7 +157,7 @@ paths:
           application/json:
             schema:
               $ref: '../schemas/client-delete.request.json'
-      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@5
       responses:
         "200":
           description: Successful response document
@@ -175,16 +175,16 @@ paths:
     post:
       operationId: sforum.oauth2-provider.api.clientsUpdate
       x-sforum-route-id: sforum.oauth2-provider.route.clients-update
-      x-sforum-contract-version: sforum.oauth2-provider.route.clients-update@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.clients-update@5
       x-sforum-guard: core.guard.login
-      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@1
+      x-sforum-request-schema: sforum.oauth2-provider.route.client-write.request@3
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '../schemas/client-write.request.json'
-      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.client-write.response@5
       responses:
         "200":
           description: Successful response document
@@ -249,9 +249,9 @@ paths:
     get:
       operationId: sforum.oauth2-provider.api.consentSummary
       x-sforum-route-id: sforum.oauth2-provider.route.consent-summary
-      x-sforum-contract-version: sforum.oauth2-provider.route.consent-summary@1
+      x-sforum-contract-version: sforum.oauth2-provider.route.consent-summary@5
       x-sforum-guard: core.guard.login
-      x-sforum-response-schema: sforum.oauth2-provider.route.consent-summary.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.consent-summary.response@5
       responses:
         "200":
           description: Successful response document
@@ -265,6 +265,26 @@ paths:
             application/json:
               schema:
                 $ref: '../schemas/consent-summary.response.json'
+  /api/oauth/docs:
+    get:
+      operationId: sforum.oauth2-provider.api.docs
+      x-sforum-route-id: sforum.oauth2-provider.route.docs
+      x-sforum-contract-version: sforum.oauth2-provider.route.docs@1
+      x-sforum-guard: core.guard.public
+      x-sforum-response-schema: sforum.oauth2-provider.route.docs.response@1
+      responses:
+        "200":
+          description: Successful response document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/docs.response.json'
+        default:
+          description: Redirect or error document
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/docs.response.json'
   /api/oauth/csrf:
     get:
       operationId: sforum.oauth2-provider.api.csrf
@@ -372,7 +392,7 @@ paths:
       x-sforum-route-id: sforum.oauth2-provider.route.userinfo
       x-sforum-contract-version: sforum.oauth2-provider.route.userinfo@1
       x-sforum-guard: core.guard.public
-      x-sforum-response-schema: sforum.oauth2-provider.route.userinfo.response@1
+      x-sforum-response-schema: sforum.oauth2-provider.route.userinfo.response@4
       responses:
         "200":
           description: Successful response document

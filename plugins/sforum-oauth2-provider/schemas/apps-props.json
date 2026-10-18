@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.component.apps.props@1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

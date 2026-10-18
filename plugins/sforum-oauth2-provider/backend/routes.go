@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,35 @@ type oauthServer struct {
 
 	profileErrorMu sync.RWMutex
 	profileError   string
+
+	// 账号时间线查询（注册时间/资料更新时间）的最近失败原因，只用于日志定位。
+	// 查询失败时 userinfo 只缺字段，不报错（见 account.go）。
+	lifecycleErrorMu sync.RWMutex
+	lifecycleError   string
+
+	// 授权时邮箱快照（scope=email）的最近失败原因，只用于日志定位（见 email_claim.go）。
+	emailClaimErrorMu sync.RWMutex
+	emailClaimError   string
+
+	// 站点公开地址缓存：userinfo 的 avatar 必须是可访问的绝对地址，而宿主只给
+	// 相对媒体路径（/media/avatars/<publicId>）。解析来源见 baseurl.go。
+	baseURLMu        sync.Mutex
+	baseURL          string
+	baseURLFetchedAt time.Time
+
+	// hostOverride 只给单测用：Host Command / Query / Identity 通道需要一个已握手
+	// 的 Host，而单测不启动 go-plugin 运行时，所以注入一个
+	// &pluginv2.Host{Commands: fake}（或 Identity: fake）。生产恒为 nil。
+	hostOverride *pluginv2.Host
+}
+
+// hostClient 返回握手后的 Host。生产走 Server.Host()；单测注入 hostOverride。
+// 所有插件 → 宿主的调用（设置、用户投影、Host Command）都从这里取通道。
+func (s *oauthServer) hostClient() (*pluginv2.Host, error) {
+	if s.hostOverride != nil {
+		return s.hostOverride, nil
+	}
+	return s.Server.Host()
 }
 
 func newOAuthServer() (*oauthServer, error) {
@@ -57,6 +87,8 @@ func (s *oauthServer) InvokeRoute(
 			Headers:       routeHeaders(map[string]string{"Content-Type": "text/html; charset=utf-8"}),
 			StreamFollows: true,
 		}, nil
+	case routeDocsID:
+		return s.handleDocs(request)
 	case routeAuthorizeID:
 		return s.handleAuthorize(ctx, request)
 	case routeCSRFID:
@@ -88,8 +120,9 @@ func (s *oauthServer) InvokeRoute(
 	case routeAuthorizationsRevok:
 		return s.handleAuthorizationRevoke(ctx, request)
 	default:
+		// 未知路由：宿主不会为它准备 responseSchema，回落到 authorize 契约披露。
 		return routeFailure(request.GetContext(), http.StatusNotFound, "oauth2.route_unknown",
-			"unknown oauth2-provider route"), nil
+			"unknown oauth2-provider route", schemaAuthorizeResponse)
 	}
 }
 
@@ -159,31 +192,45 @@ func routeRedirect(ctx *protocolwire.RequestContext, location string) (*pluginwi
 
 // routeFailure 返回结构化错误。HTTP 状态与 reason 都由调用方决定，
 // 便于第三方应用按 OAuth2 错误语义处理。
+//
+// 关键约束：这里必须返回**真正的终端响应**（StatusCode + 符合该路由
+// responseSchema 的 Body），不能只填 RouteResponse.Error。宿主把只带 Error
+// 的响应视为传输层失败，会映射成 502 extensions.route_unavailable
+// （protocol_v2_routes.go 的 protocolV2Error → dispatcher 的 ErrDispatchTransport）。
+// 因此错误分支同样走 TypedDocument，只是文档内容换成错误变体。
+//
+// schemaRef 决定 body 的形状：
+//   - authorize.response  ：{"status":"error","error":…,"errorDescription":…}
+//   - 其余（client-write / mutation / clients / authorizations …）：{"error":…,"errorDescription":…}
 func routeFailure(
 	ctx *protocolwire.RequestContext,
 	status int,
 	reason string,
 	message string,
-) *pluginwire.RouteResponse {
-	code := protocolwire.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
-	switch status {
-	case http.StatusNotFound:
-		code = protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND
-	case http.StatusForbidden:
-		code = protocolwire.ErrorCode_ERROR_CODE_PERMISSION_DENIED
-	case http.StatusUnauthorized:
-		code = protocolwire.ErrorCode_ERROR_CODE_UNAUTHENTICATED
-	case http.StatusConflict:
-		code = protocolwire.ErrorCode_ERROR_CODE_CONFLICT
-	case http.StatusTooManyRequests:
-		code = protocolwire.ErrorCode_ERROR_CODE_RATE_LIMITED
+	schemaRef string,
+) (*pluginwire.RouteResponse, error) {
+	values := errorDocumentValues(reason, message, schemaRef)
+	return routeDocument(ctx, status, schemaRef, values)
+}
+
+// errorDocumentValues 按目标 schema 生成错误文档。reason 形如 "oauth2.invalid_request"，
+// 剥掉前缀后即为 RFC 6749 的 error code。
+func errorDocumentValues(reason, message, schemaRef string) map[string]any {
+	code := strings.TrimPrefix(reason, "oauth2.")
+	if code == "" {
+		code = "server_error"
 	}
-	return &pluginwire.RouteResponse{
-		Context: responseContext(ctx),
-		Error: &protocolwire.ErrorDetail{
-			Code: code, Reason: reason, Message: message,
-		},
+	if schemaRef == schemaAuthorizeResponse {
+		return map[string]any{
+			"status": "error", "error": code, "errorDescription": message,
+		}
 	}
+	values := map[string]any{"error": code, "errorDescription": message}
+	// client-write 与 mutation 的错误变体要求同时带 ok=false。
+	if schemaRef == schemaClientWriteResponse || schemaRef == schemaMutationResponse {
+		values["ok"] = false
+	}
+	return values
 }
 
 func responseContext(request *protocolwire.RequestContext) *protocolwire.ResponseContext {

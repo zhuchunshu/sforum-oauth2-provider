@@ -1,0 +1,85 @@
+<main class="sforum-settings">
+  <div class="sforum-settings__layout">
+    <!-- 左栏由宿主渲染：与 /settings/profile 同构（核心账号项、扩展项、计数徽标、
+         移动端抽屉所有者都由宿主组件拥有）。模板里不要再手写一份左栏标记——那正是
+         本页原先与资料页漂移的原因。此岛只接受 active 一个属性，且必须非空。 -->
+    <sf-account-settings-sidebar active="sforum.oauth2-provider.navigation.apps"></sf-account-settings-sidebar>
+
+    <section class="sforum-settings__main sforum-content-column" aria-labelledby="sfp-page-title">
+      <header class="sforum-settings__head sfp-head">
+        <div class="sfp-head__copy">
+          <!-- 首帧不能是 h1：宿主 main.css 的 `h1:not([data-slot="title"])` 巨字号会在
+               L2 CSS 到位前闪一帧大字，而模板净化器会剥掉 data-*。这里先用 <p> 占位，
+               apps.mjs 挂载时升级成带 data-slot="title" 豁免的 h1。标签页标题由宿主
+               SEO 管道从本页贡献声明 label 渲染，前端一律不写 document.title。 -->
+          <p class="sfp-head__title" id="sfp-page-title">OAuth 应用</p>
+          <p class="sfp-head__subtitle">管理你自己创建的 OAuth 应用，并撤销已授权访问你账号的应用。</p>
+        </div>
+        <div class="sforum-settings__head-actions sfp-head-actions"></div>
+      </header>
+
+      <p class="sfp-status sfp-status-mount sfp-hidden" role="status" id="sfp-status"></p>
+
+      <!-- 工具行（C1 语言）：iOS 分段控件（两个视图 tab + 计数徽标）+ ⌘K 命令栏搜索
+           + 接入信息 popover。原三块统计大卡整体删除：计数并入分段徽标，存储说明降到
+           列表下方脚注，端点信息收进 popover。tab 仍是 <a href="#锚点">，hash 深链逻辑不变。
+           净化器会剥 data-*/hidden/aria-controls：初始隐藏一律 sfp-hidden 类；
+           命令栏与 popover 的图标槽由 apps.mjs 挂载时补 data-ref 再填充。 -->
+      <div class="sfp-toolbar">
+        <nav class="sforum-settings__section-nav sfp-tabs" role="tablist" aria-label="OAuth2 应用视图">
+          <a class="sfp-tab is-active" href="#apps" id="sfp-tab-apps" role="tab"><span class="sfp-tab__label sfp-tab-apps-label">我的应用</span><span class="sfp-tab__count sfp-count-apps">—</span></a>
+          <a class="sfp-tab" href="#authorized" id="sfp-tab-auths" role="tab"><span class="sfp-tab__label sfp-tab-auths-label">已授权</span><span class="sfp-tab__count sfp-count-auths">—</span></a>
+        </nav>
+        <!-- 搜索命令栏与「接入信息」由 apps.mjs 挂载时构建：宿主模板净化器会剥掉
+             label / input / button（只留下它们的子节点），交互控件不能写在模板里。
+             这里只留空容器当挂载点。 -->
+        <div class="sfp-cmdbar"></div>
+        <div class="sfp-apiinfo"></div>
+      </div>
+
+      <article class="sfp-panel" id="sfp-panel-apps" role="tabpanel" aria-labelledby="sfp-tab-apps">
+        <div class="sfp-grid sfp-apps-body">
+          <div class="sf-skeleton sfp-skel-card">
+            <div class="sfp-skel-card__cover"></div>
+            <div class="sf-skeleton__content sfp-skel-card__body">
+              <span class="sf-skeleton__line"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--short"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--mid"></span>
+            </div>
+          </div>
+          <div class="sf-skeleton sfp-skel-card">
+            <div class="sfp-skel-card__cover"></div>
+            <div class="sf-skeleton__content sfp-skel-card__body">
+              <span class="sf-skeleton__line"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--short"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--mid"></span>
+            </div>
+          </div>
+        </div>
+        <p class="sfp-grid-note sfp-apps-desc"></p>
+      </article>
+
+      <article class="sfp-panel sfp-hidden" id="sfp-panel-auths" role="tabpanel" aria-labelledby="sfp-tab-auths">
+        <div class="sfp-grid sfp-auth-body">
+          <div class="sf-skeleton sfp-skel-card">
+            <div class="sfp-skel-card__cover"></div>
+            <div class="sf-skeleton__content sfp-skel-card__body">
+              <span class="sf-skeleton__line"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--short"></span>
+              <span class="sf-skeleton__line sfp-skeleton-line--mid"></span>
+            </div>
+          </div>
+        </div>
+        <p class="sfp-grid-note sfp-auth-desc"></p>
+      </article>
+
+      <p class="sfp-foot-hint"><span class="sfp-foot-hint__kbd" aria-hidden="true">⌘K</span> 聚焦搜索<span class="sfp-hint-sep" aria-hidden="true">·</span>client_id 是可公开的标识，密钥只在创建 / 重置时展示一次</p>
+
+      <sf-extension-widget extension-id="sforum.oauth2-provider" component-id="sforum.oauth2-provider.component.apps">
+        <p class="sfp-loading__note">如果应用列表一直停在加载骨架，说明站点未启用扩展公开前端运行时（<code>SFORUM_V3_PUBLIC_L2</code>）：刷新重试，或联系站点管理员。</p>
+      </sf-extension-widget>
+
+      <sf-content-column-footer></sf-content-column-footer>
+    </section>
+  </div>
+</main>

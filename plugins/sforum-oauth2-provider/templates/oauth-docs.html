@@ -1,0 +1,270 @@
+<main class="sf-public-page sfp-docs">
+  <div class="sfp-docs__container">
+    <article class="sf-card">
+      <div class="sf-card__body">
+        <p class="sfp-docs__eyebrow">OAuth2 Provider</p>
+        <!-- 首帧不能用 h1：宿主 main.css 的 h1:not([data-slot="title"]) 是巨字号，而模板净化器会剥掉
+             data-* 属性。标签页标题由宿主 SEO 从页面贡献声明的 label 渲染，前端不写 document.title。 -->
+        <p class="sfp-docs__title" id="sfp-docs-title">接入说明</p>
+        <p class="sfp-docs__lede">
+          本站是 OAuth2 授权服务器：第三方应用用<strong>授权码 + PKCE</strong>拿到访问令牌，
+          再用令牌读取用户资料。账号、登录会话与权限始终由站点持有——应用永远拿不到密码。
+        </p>
+
+        <div class="sf-prose sfp-docs__prose">
+          <h2 id="overview">这是什么</h2>
+          <p>三个角色，一条链路：</p>
+          <ul>
+            <li><strong>站点</strong>（本页所在站点）是授权服务器，持有账号、会话与授权记录。</li>
+            <li><strong>你的应用</strong>是客户端，只持有 <code>client_id</code> 与（机密客户端的）<code>client_secret</code>。</li>
+            <li><strong>用户</strong>在自己的浏览器里登录本站，并在确认页上决定授予哪些权限。</li>
+          </ul>
+          <p>
+            链路是：应用把浏览器送到授权端点 → 用户登录并确认 → 浏览器带着 <code>code</code> 回到应用登记的回调地址 →
+            应用用 <code>code</code> 换访问令牌 → 应用拿令牌读用户资料。授权码只能使用一次、10 分钟内有效。
+          </p>
+
+          <h2 id="create-app">1 创建应用</h2>
+          <p>
+            登录后打开 <a href="/settings/oauth-apps">设置 → OAuth 应用</a>，点「新建应用」。管理员还可以在后台
+            「OAuth2 应用」里管理站内全部应用。创建完成后你会拿到：
+          </p>
+          <ul>
+            <li><code>client_id</code>——公开标识，出现在授权请求里。</li>
+            <li><code>client_secret</code>——机密客户端才有，<strong>只在创建或重置时显示一次</strong>；丢了只能重置。</li>
+          </ul>
+          <p>回调地址的规则，写错会在授权时被直接拒绝（而且不会回跳）：</p>
+          <ul>
+            <li>必须是 <code>https</code>；本地开发允许 <code>http://127.0.0.1</code> 与 <code>http://localhost</code>。</li>
+            <li>授权请求里的 <code>redirect_uri</code> 必须与登记值<strong>完全一致</strong>，不做前缀或通配匹配。</li>
+            <li>可以登记多个回调地址，但每次请求只能带其中一个。</li>
+          </ul>
+          <p>
+            SPA、移动端与命令行工具属于<strong>公开客户端</strong>：它们没有安全的密钥存放位置，因此没有
+            <code>client_secret</code>，<strong>必须</strong>用 PKCE。机密客户端（有后端）也建议带 PKCE。
+          </p>
+
+          <h2 id="authorize">2 发起授权</h2>
+          <p>把浏览器导航到授权端点，参数如下：</p>
+          <div class="sfp-docs__scroll">
+            <table class="sfp-docs__table">
+              <thead><tr><th>参数</th><th>必填</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><code>client_id</code></td><td>是</td><td>创建应用时拿到的标识。</td></tr>
+                <tr><td><code>redirect_uri</code></td><td>是</td><td>必须与登记值完全一致，需 URL 编码。</td></tr>
+                <tr><td><code>response_type</code></td><td>是</td><td>固定 <code>code</code>。</td></tr>
+                <tr><td><code>scope</code></td><td>否</td><td>空格分隔；省略时回落到应用登记的权限范围。</td></tr>
+                <tr><td><code>state</code></td><td>建议</td><td>随机串，回调时原样带回；用它防 CSRF 与串联请求。</td></tr>
+                <tr><td><code>code_challenge</code></td><td>公开客户端必填</td><td><code>BASE64URL(SHA256(verifier))</code>，无填充。</td></tr>
+                <tr><td><code>code_challenge_method</code></td><td>同上</td><td>固定 <code>S256</code>（<code>plain</code> 不接受）。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <pre><code><span class="sfp-docs__origin">https://站点域名</span>/api/oauth/authorize
+  ?client_id=sfo_client_xxx
+  &amp;redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback
+  &amp;response_type=code
+  &amp;scope=profile%20email
+  &amp;state=RANDOM_STRING
+  &amp;code_challenge=BASE64URL_SHA256_OF_VERIFIER
+  &amp;code_challenge_method=S256</code></pre>
+          <p>PKCE 的 verifier 与 challenge 用一条命令就能算出来（<code>base64url</code>、无填充，这是 RFC 7636 的要求）：</p>
+          <pre><code>verifier=$(openssl rand -base64 48 | tr -d '=+/' | cut -c1-64)
+challenge=$(printf %s "$verifier" | openssl dgst -sha256 -binary \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')</code></pre>
+          <p>
+            端点会按会话状态分流：未登录先跳站内登录页（登录后回到同一个授权请求）；需要确认时跳确认页；
+            之前勾过「记住这次授权」的直接回跳。成功时回调地址上会多出 <code>code</code> 与 <code>state</code>。
+          </p>
+          <blockquote>
+            <p>回调时务必先校验 <code>state</code> 与自己发出的值一致，再处理 <code>code</code>。
+            回调地址上出现 <code>error</code> 时没有 <code>code</code>，不要继续换取令牌。</p>
+          </blockquote>
+
+          <h2 id="token">3 换取令牌</h2>
+          <p>
+            令牌端点由站点的 CSRF 中间件保护（所有 <code>/api/oauth/*</code> 的 unsafe 方法都要求
+            double-submit 令牌）。服务端到服务端的调用要先握手一次拿到 <code>csrf_</code> cookie：
+          </p>
+          <pre><code>curl -c jar.txt <span class="sfp-docs__origin">https://站点域名</span>/api/oauth/csrf
+CSRF=$(awk '$6=="csrf_" {print $7}' jar.txt)
+
+curl -b jar.txt -X POST <span class="sfp-docs__origin">https://站点域名</span>/api/oauth/token \
+  -H "Content-Type: application/json" \
+  -H "X-Csrf-Token: $CSRF" \
+  -H "Origin: <span class="sfp-docs__origin">https://站点域名</span>" \
+  -d '{
+    "grant_type": "authorization_code",
+    "client_id": "sfo_client_xxx",
+    "client_secret": "sfos_xxx",
+    "code": "sfoc_xxx",
+    "redirect_uri": "https://app.example.com/callback",
+    "code_verifier": "原始 verifier"
+  }'</code></pre>
+          <p>成功响应：</p>
+          <pre><code>{
+  "access_token": "sfoa_…",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "sfor_…",
+  "scope": "profile email"
+}</code></pre>
+          <p>
+            公开客户端不带 <code>client_secret</code>，改为在请求体里带 <code>code_verifier</code>；
+            机密客户端两者都带。响应里出现 <code>refresh_token</code> 时，说明这次授权可以在过期后继续续期。
+          </p>
+
+          <h2 id="userinfo">4 读取用户资料</h2>
+          <blockquote>
+            <p>访问令牌走 <code>access_token</code> 查询参数，<strong>不是</strong> <code>Authorization: Bearer</code>
+            ——插件路由会剥离凭据头，Bearer 到不了插件进程。</p>
+          </blockquote>
+          <pre><code>curl "<span class="sfp-docs__origin">https://站点域名</span>/api/oauth/userinfo?access_token=sfoa_xxx"</code></pre>
+          <pre><code>{
+  "sub": "7",
+  "id": 7,
+  "username": "alice",
+  "displayName": "Alice",
+  "status": "active",
+  "createdAt": "2026-01-02T03:04:05.123456789Z",
+  "updatedAt": "2026-02-03T04:05:06Z",
+  "profileUrl": "<span class="sfp-docs__origin">https://站点域名</span>/u/alice",
+  "email": "alice@example.com",
+  "emailVerified": true,
+  "scope": "profile email avatar",
+  "clientId": "sfo_client_xxx",
+  "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0i…"
+}</code></pre>
+          <p>字段与是否恒在：</p>
+          <div class="sfp-docs__scroll">
+            <table class="sfp-docs__table">
+              <thead><tr><th>字段</th><th>出现条件</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><code>sub</code> / <code>id</code></td><td>恒在</td><td>用户 id 的字符串 / 数字两种形态，同值。</td></tr>
+                <tr><td><code>username</code> / <code>displayName</code></td><td>恒在</td><td>登录名与昵称（昵称为空时回落成登录名）。</td></tr>
+                <tr><td><code>status</code></td><td>恒在</td><td><code>active</code> / <code>disabled</code> / <code>banned</code>。</td></tr>
+                <tr><td><code>scope</code> / <code>clientId</code></td><td>恒在</td><td>本次令牌的授权范围与客户端标识。</td></tr>
+                <tr><td><code>createdAt</code> / <code>updatedAt</code></td><td>宿主给得出才在</td><td>注册时间与资料更新时间（UTC，RFC 3339）。</td></tr>
+                <tr><td><code>profileUrl</code></td><td>能解析站点地址才在</td><td>站内公开主页。</td></tr>
+                <tr><td><code>email</code> / <code>emailVerified</code></td><td>授予 <code>email</code> 且在授权时读到</td><td>授权时读取一次并保存的快照。</td></tr>
+                <tr><td><code>avatar</code></td><td>授予 <code>avatar</code> 时恒在</td><td>绝对地址；没有上传头像时是按显示名生成的确定性 SVG 头像（data URL）。</td></tr>
+                <tr><td><code>groups</code></td><td>授予 <code>users.groups</code></td><td>用户组标识数组。</td></tr>
+                <tr><td><code>topicCount</code> / <code>commentCount</code></td><td>授予对应 scope</td><td>公开内容计数。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            条件字段缺席时<strong>整个键不出现</strong>，不会是空串或 <code>null</code>：
+            据此区分「没授权 / 宿主没给」与「值为空」。
+          </p>
+
+          <h2 id="revoke">5 刷新、撤销与内省</h2>
+          <p>刷新令牌：把 <code>grant_type</code> 换成 <code>refresh_token</code>，其余字段按机密 / 公开客户端补齐。</p>
+          <pre><code>{
+  "grant_type": "refresh_token",
+  "client_id": "sfo_client_xxx",
+  "client_secret": "sfos_xxx",
+  "refresh_token": "sfor_xxx"
+}</code></pre>
+          <p>
+            刷新令牌<strong>每次使用都会轮换</strong>：响应里给新的 <code>refresh_token</code>，旧的立即失效。
+            刷新时申请的 <code>scope</code> 不能超出原始授权，否则得到 <code>invalid_scope</code>。
+          </p>
+          <p>撤销令牌（RFC 7009）与内省（RFC 7662）都需要客户端认证：</p>
+          <pre><code># 撤销：幂等，重复撤销同样返回 200
+{ "token": "sfor_xxx", "client_id": "sfo_client_xxx", "client_secret": "sfos_xxx" }
+
+# 内省：返回 active 与令牌元数据
+{ "token": "sfoa_xxx", "client_id": "sfo_client_xxx", "client_secret": "sfos_xxx" }</code></pre>
+          <p>
+            用户侧随时可以在 <a href="/settings/oauth-apps#authorized">设置 → OAuth 应用 → 已授权</a> 里撤销对某个应用的授权；
+            撤销后该应用的全部令牌立即失效，之后调用 userinfo 得到 <code>invalid_token</code>。
+          </p>
+
+          <h2 id="scopes">6 权限范围</h2>
+          <p><code>scope</code> 是空格分隔的清单，三层约束从内到外：</p>
+          <ul>
+            <li><strong>应用登记范围</strong>：该应用<em>可申请</em>的权限。请求超出这份清单会被 <code>invalid_scope</code> 拒绝。</li>
+            <li><strong>缺省值</strong>：请求不带 <code>scope</code> 时，服务端用应用登记的范围作为默认值。</li>
+            <li><strong>站点清单</strong>：管理员配置的硬上限，只能收窄可选范围；<code>profile</code> 是身份基底，始终允许。</li>
+          </ul>
+          <div class="sfp-docs__scroll">
+            <table class="sfp-docs__table">
+              <thead><tr><th>scope</th><th>说明</th><th>授权</th></tr></thead>
+              <tbody id="sfp-scope-rows">
+                <tr><td colspan="3">正在加载…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <code>email</code> 是敏感范围：确认页会明确列出，用户同意后服务端在签发授权码时读取一次并保存，
+            之后 userinfo 只读这份快照，不会持续读取。
+          </p>
+
+          <h2 id="errors">7 错误码</h2>
+          <div class="sfp-docs__scroll">
+            <table class="sfp-docs__table">
+              <thead><tr><th>错误码</th><th>含义</th><th>出现位置</th></tr></thead>
+              <tbody id="sfp-error-rows">
+                <tr><td colspan="3">正在加载…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            授权端点侧的错误按 RFC 6749 §4.1.2.1 回跳到已登记的回调地址（带 <code>error</code>、
+            <code>error_description</code> 与 <code>state</code>）；回调地址未登记时直接返回结构化错误，绝不回跳。
+            令牌与资料端点则直接返回 JSON 错误体，请按 <code>error</code> 字段分支，不要匹配 <code>error_description</code> 的文案。
+          </p>
+
+          <h2 id="endpoints">8 端点总表</h2>
+          <p>第三方应用需要接入的端点：</p>
+          <div class="sfp-docs__scroll">
+            <table class="sfp-docs__table sfp-docs__table--endpoints">
+              <thead><tr><th>方法</th><th>路径</th><th>Guard</th><th>说明</th></tr></thead>
+              <tbody id="sfp-endpoint-rows">
+                <tr><td colspan="4">正在加载…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <details class="sfp-docs__fold">
+            <summary>插件自用端点（确认页与管理端调用，第三方无需接入）</summary>
+            <div class="sfp-docs__scroll">
+              <table class="sfp-docs__table sfp-docs__table--endpoints">
+                <thead><tr><th>方法</th><th>路径</th><th>Guard</th><th>说明</th></tr></thead>
+                <tbody id="sfp-internal-endpoint-rows">
+                  <tr><td colspan="4">正在加载…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p>
+            <code>public</code> 表示不需要登录即可访问（令牌端点仍要求客户端认证）；
+            <code>login</code> 表示需要站内会话。
+          </p>
+
+          <h2 id="limits">9 限制与注意事项</h2>
+          <ul>
+            <li>访问令牌只能用 <code>access_token</code> 查询参数交付，<code>Authorization: Bearer</code> 不会被读取。</li>
+            <li>所有 unsafe 方法（POST）都需要 CSRF double-submit：先 <code>GET /api/oauth/csrf</code>，再带 <code>X-Csrf-Token</code> 与 <code>Origin</code>。</li>
+            <li>有效期由管理员在「OAuth2 设置」里控制，默认授权码 10 分钟、访问令牌 1 小时、刷新令牌 30 天；修改只影响新签发的令牌。</li>
+            <li><code>email</code> 是授权时的一次性快照；用户在站点改了邮箱，应用要等下一次授权才会看到新值。</li>
+            <li><code>createdAt</code> / <code>updatedAt</code> 依赖宿主稳定查询，<code>profileUrl</code> 依赖站点公开地址；拿不到时字段整体缺席，接口状态仍是 200。</li>
+            <li>本站只实现授权码模式：不支持 <code>client_credentials</code>、隐式模式（implicit）与设备码。</li>
+            <li>请把 <code>client_secret</code> 留在服务端。浏览器、移动端二进制与仓库里的密钥都等于公开。</li>
+          </ul>
+        </div>
+
+        <p class="sfp-docs__foot">
+          本页的 scope、端点与错误码表由插件在运行时提供（<code>GET /api/oauth/docs</code>），随版本更新。
+        </p>
+
+        <!-- 三张表的数据由公开 L2 组件填入：模板给出完整骨架（首帧即有正文，无布局跳动），
+             组件只负责取数并把行写进上面的 tbody。 -->
+        <sf-extension-widget
+          extension-id="sforum.oauth2-provider"
+          component-id="sforum.oauth2-provider.component.docs"
+        ></sf-extension-widget>
+      </div>
+    </article>
+  </div>
+</main>

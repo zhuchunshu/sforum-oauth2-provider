@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,15 @@ func defaultSettings() settings {
 		CodeTTL:         600,
 		AllowUserApps:   true,
 		RequireConsent:  true,
-		AllowedScopes:   []string{scopeProfile},
+		AllowedScopes: []string{
+			scopeProfile,
+			// email 敏感但可选：站点允许应用申请，应用必须显式请求、用户必须在确认页同意。
+			scopeEmail,
+			scopeAvatar,
+			scopeTopicCount,
+			scopeCommentCount,
+			scopeUserGroups,
+		},
 	}
 }
 
@@ -42,7 +51,6 @@ const (
 	hostQueryResultV1  = "1"
 )
 
-
 // hostCallContext 构造插件 → Host 调用上下文。
 // Host 的 validateProtocolV2HostContext 会拒绝任何携带 Actor 的插件请求
 // （"protocol v2 actor context is not host-attested"），因此必须清空 Actor；
@@ -53,6 +61,13 @@ func hostCallContext(routeCtx *protocolwire.RequestContext) *protocolwire.Reques
 	}
 	clone := proto.Clone(routeCtx).(*protocolwire.RequestContext)
 	clone.Actor = nil
+	// 宿主的委派是 Host-to-plugin 单向的：插件把 incoming context 原样回传会被判
+	// "protocol v2 actor delegations are Host-to-plugin only"。委派令牌只能在对应的
+	// delegated request 字段里提交（QueryRequest.actor_delegation 等，见 email_claim.go），
+	// 所以这里连同会话委派一起清空。
+	clone.HostCommandDelegations = nil
+	clone.HostQueryDelegations = nil
+	clone.HostSessionDelegation = nil
 	return clone
 }
 
@@ -96,8 +111,8 @@ func (s *oauthServer) loadSettings(ctx context.Context, hostCtx *protocolwire.Re
 	if hostCtx == nil {
 		return result, false
 	}
-	host, err := s.Server.Host()
-	if err != nil || host == nil {
+	host, err := s.hostClient()
+	if err != nil || host == nil || host.Queries == nil {
 		return result, false
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -132,6 +147,11 @@ func (s *oauthServer) loadSettings(ctx context.Context, hostCtx *protocolwire.Re
 	if scopes := strings.Fields(stringValue(container[settingScopes])); len(scopes) > 0 {
 		result.AllowedScopes = scopes
 	}
+	// profile 是身份读取的基底：始终允许、始终授予。管理员配置的清单只决定
+	// 额外可选范围，不能把 profile 摘出去。
+	if !slices.Contains(result.AllowedScopes, scopeProfile) {
+		result.AllowedScopes = append([]string{scopeProfile}, result.AllowedScopes...)
+	}
 	return result, true
 }
 
@@ -164,16 +184,23 @@ func errorTextFromDetail(response *hostwire.IdentityUserResponse) string {
 	return detail.GetReason() + ": " + detail.GetMessage()
 }
 
-// userProfile 是 userinfo 端点对外暴露的资料。
+// userProfile 是 userinfo 端点对外暴露的资料。AvatarURL/Groups 来自宿主的
+// core-safe 投影（公开数据）；TopicCount/CommentCount 由宿主按需查询公开内容
+// 聚合，仅在 DeclaredFields 声明并成功返回时才有值（nil = 未取到，userinfo 省略）。
 type userProfile struct {
-	UserID      int64
-	Username    string
-	DisplayName string
-	Status      string
+	UserID       int64
+	Username     string
+	DisplayName  string
+	Status       string
+	AvatarURL    string
+	Groups       []string
+	TopicCount   *int64
+	CommentCount *int64
 }
 
-// loadUserProfile 通过 Host IdentityService 读取核心安全用户字段。
-// 扩展用户字段需要 actor 权限，v1 不请求它们。
+// loadUserProfile 通过 Host IdentityService 读取 core-safe 用户字段。
+// profile 与 avatar/groups 是核心安全投影（actorless 可读）；公开内容计数
+// 由宿主在 DeclaredFields 显式声明时按需聚合。
 func (s *oauthServer) loadUserProfile(
 	ctx context.Context,
 	hostCtx *protocolwire.RequestContext,
@@ -182,16 +209,19 @@ func (s *oauthServer) loadUserProfile(
 	if hostCtx == nil || userID <= 0 {
 		return userProfile{}, false
 	}
-	host, err := s.Server.Host()
-	if err != nil || host == nil {
+	host, err := s.hostClient()
+	if err != nil || host == nil || host.Identity == nil {
 		return userProfile{}, false
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	response, err := host.Identity.GetUser(timeoutCtx, &hostwire.IdentityUserRequest{
-		Context:        hostCallContext(hostCtx),
-		UserId:         userID,
-		DeclaredFields: []string{"id", "username", "displayName", "status"},
+		Context: hostCallContext(hostCtx),
+		UserId:  userID,
+		DeclaredFields: []string{
+			"id", "username", "displayName", "status",
+			"avatar", "groups", "topicCount", "commentCount",
+		},
 	})
 	if err == nil && response != nil && response.GetError() == nil {
 		return profileFromDocument(response, userID)
@@ -216,11 +246,29 @@ func profileFromDocument(response *hostwire.IdentityUserResponse, userID int64) 
 		Username:    stringValue(values["username"]),
 		DisplayName: stringValue(values["displayName"]),
 		Status:      stringValue(values["status"]),
+		AvatarURL:   stringValue(values["avatar"]),
 	}
 	if id, ok := values["id"].(float64); ok {
 		profile.UserID = int64(id)
 	} else {
 		profile.UserID = userID
+	}
+	if rawGroups, ok := values["groups"].([]any); ok {
+		groups := make([]string, 0, len(rawGroups))
+		for _, item := range rawGroups {
+			if name, ok := item.(string); ok && strings.TrimSpace(name) != "" {
+				groups = append(groups, name)
+			}
+		}
+		profile.Groups = groups
+	}
+	if count, ok := values["topicCount"].(float64); ok {
+		value := int64(count)
+		profile.TopicCount = &value
+	}
+	if count, ok := values["commentCount"].(float64); ok {
+		value := int64(count)
+		profile.CommentCount = &value
 	}
 	if profile.DisplayName == "" {
 		profile.DisplayName = profile.Username

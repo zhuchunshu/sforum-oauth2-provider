@@ -43,6 +43,18 @@ cd plugins/sforum-oauth2-provider/backend && go vet ./... && go test ./...
 校验哈希，摘要不匹配的包会被拒绝启用。同版本号只改内容时，卡片上的 `重启` 不会切换制品，
 必须走「禁用 → 升级（授权当前精确制品 → 确认并升级）→ 启用」。
 
+**改了 `components[].propsSchema` / `l2Component` 指向的制品，必须同时提升该组件的
+`contractVersion`**（`sforum.oauth2-provider.component.apps@20` 这种 `@N` 后缀 +1）。
+宿主的 `validateComponentUpgrade` 把「同契约版本 + 被引用内容变化」判成硬冲突
+（`contribution … changed without a contract version`），整条升级 lifecycle 会在
+`07.host.registering` 失败。`scripts/prepare-package.sh` 现在会在构建前比对
+`.build/component-contract-state.json`，检测到这种漂移会直接报错退出，不要绕过它。
+
+**改了 `capabilities`（如新增 `users.email.read`）还要重启 API**：宿主在插件运行时启动时
+快照能力集，dev watcher 的自动提升与插件「重启」都不刷新它；不重启时宿主不签发同意式委派，
+`email` 会静默缺席（授权仍成功）。`kill $(pgrep -x air) && ./scripts/api-dev.sh`，再确认
+后台卡片是目标版本、`audit_events` 出现 `identity.email.consent.read`。
+
 ## 当前环境事实（2026-10-15）
 
 - `.env`：`EXTERNAL_EXTENSION_ROOTS=…/SForum/extensions/dev,~/Code/github/sforum-oauth2-provider`
@@ -74,7 +86,21 @@ cd plugins/sforum-oauth2-provider/backend && go vet ./... && go test ./...
    `protocol v2 actor context is not host-attested`。
 6. 授权确认页用 `mode: stream`（`mode: http` 的响应被强制 JSON 校验，公共资产端点不服务 `.html`）。
 7. PKCE S256 用 **base64url**（RFC 7636，无填充）。
-8. userinfo 只能拿核心安全字段（`id`/`username`/`displayName`/`status`）。
+8. userinfo 的字段面由宿主三个面拼成：core-safe 投影（`id`/`username`/`displayName`/`status`/`avatar`/`groups`
+   + 显式声明的 `topicCount`/`commentCount`）、稳定查询 `sforum.core.safe_user.by_id`
+   （`created_at`/`updated_at`，清单声明 `core_views` 授权；失败一律降级成字段缺席，见
+   `backend/account.go`），以及**同意式邮箱快照**（capability `users.email.read` +
+   `core.query.identity.self_email@1`，授权码签发时读一次并落 `oauth_email_claims`，
+   userinfo 只读快照；见 `backend/email_claim.go`）。插件 → 宿主的调用仍然必须 actorless，
+   所以 userinfo 绝不可能现读 email。
+   宿主对 initials 账号给出的 `avatar` 是空串、上传头像给的是相对路径，插件在授予 `avatar` 范围时
+   生成确定性 SVG data URL 兜底（GitHub 风格 identicon：浅灰方底 + 5×5 镜像像素块，无文字），
+   并用 `backend/baseurl.go` 把相对路径补成绝对链接
+   （运行时 `site.url` → `APP_URL`）。`profileUrl` 走同一条站点地址解析链。**不要改回「非空才下发」
+   或裸相对路径**。
+
+9. 组件贡献的 `contractVersion` 必须与被引用制品同源变化：props/result schema、L2 前端制品、
+   SSR 模板任一处内容变了就要 +1，否则升级被 `validateComponentUpgrade` 拒绝（见「开发闭环」）。
 
 ## 发布
 

@@ -1,26 +1,51 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sforum.oauth2-provider.route.authorizations.response@1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["authorizations", "canManageAll"],
-  "properties": {
-    "authorizations": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["clientId", "clientName", "scopes", "createdAt", "updatedAt"],
-        "properties": {
-          "clientId": { "type": "string" },
-          "clientName": { "type": "string" },
-          "scopes": { "type": "array", "items": { "type": "string" } },
-          "createdAt": { "type": "string" },
-          "updatedAt": { "type": "string" }
-        }
+  "$id": "sforum.oauth2-provider.route.authorizations.response@5",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorizations", "canManageAll"],
+      "properties": {
+        "authorizations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["clientId", "clientName", "scopes", "createdAt", "updatedAt"],
+            "properties": {
+              "clientId": { "type": "string" },
+              "clientName": { "type": "string" },
+              "icon": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "pattern", "background", "color"],
+                "properties": {
+                  "kind": { "type": "string", "enum": ["attachment", "url", "generated"] },
+                  "url": { "type": "string" },
+                  "pattern": { "type": "string", "pattern": "^[01]{25}$" },
+                  "background": { "type": "string" },
+                  "color": { "type": "string" }
+                }
+              },
+              "scopes": { "type": "array", "items": { "type": "string" } },
+              "createdAt": { "type": "string" },
+              "updatedAt": { "type": "string" }
+            }
+          }
+        },
+        "canManageAll": { "type": "boolean" },
+        "source": { "type": "string" }
       }
     },
-    "canManageAll": { "type": "boolean" },
-    "source": { "type": "string" }
-  }
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": { "type": "string" },
+        "errorDescription": { "type": "string" }
+      }
+    }
+  ]
 }

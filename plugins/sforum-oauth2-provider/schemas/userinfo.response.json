@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sforum.oauth2-provider.route.userinfo.response@1",
+  "$id": "sforum.oauth2-provider.route.userinfo.response@4",
   "oneOf": [
     {
       "type": "object",
@@ -8,9 +8,37 @@
       "required": ["sub", "username", "displayName", "status", "scope", "clientId"],
       "properties": {
         "sub": { "type": "string" },
+        "id": { "type": "integer" },
         "username": { "type": "string" },
         "displayName": { "type": "string" },
         "status": { "type": "string" },
+        "avatar": { "type": "string" },
+        "groups": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "topicCount": { "type": "integer" },
+        "commentCount": { "type": "integer" },
+        "createdAt": {
+          "type": "string",
+          "description": "Registration time (UTC, RFC 3339). Omitted when the Host cannot serve it."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last account update (UTC, RFC 3339). Omitted when the Host cannot serve it."
+        },
+        "profileUrl": {
+          "type": "string",
+          "description": "Absolute URL of the public site profile. Omitted when the site URL cannot be resolved."
+        },
+        "email": {
+          "type": "string",
+          "description": "Primary email captured with explicit consent at authorization. Omitted without the email scope or when no snapshot exists."
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Whether the captured email was verified. Only present together with email."
+        },
         "scope": { "type": "string" },
         "clientId": { "type": "string" }
       }

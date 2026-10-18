@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sforum.oauth2-provider.route.consent-summary.response@1",
+  "$id": "sforum.oauth2-provider.route.consent-summary.response@5",
   "type": "object",
   "additionalProperties": false,
   "required": ["status", "clientName", "scopes", "user"],
@@ -9,6 +9,19 @@
     "clientId": { "type": "string" },
     "clientName": { "type": "string" },
     "clientDescription": { "type": "string" },
+    "clientLogo": { "type": "string" },
+    "icon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pattern", "background", "color"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["attachment", "url", "generated"] },
+        "url": { "type": "string" },
+        "pattern": { "type": "string", "pattern": "^[01]{25}$" },
+        "background": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
     "redirectUri": { "type": "string" },
     "scopes": {
       "type": "array",

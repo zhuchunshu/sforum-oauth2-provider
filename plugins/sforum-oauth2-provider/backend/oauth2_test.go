@@ -25,7 +25,9 @@ func testRequest(routeID string, values map[string]any) *pluginwire.RouteRequest
 		Context: &protocolwire.RequestContext{
 			RequestId: "test-request",
 			Extension: &protocolwire.ExtensionIdentity{ExtensionId: "sforum.oauth2-provider"},
-			Actor:     &protocolwire.Actor{UserId: 7},
+			// 默认 actor 是「持有 create_clients 的普通用户」：应用管理类用例以此为基线，
+			// 无权限/管理员等差异场景在用例内显式覆盖 Actor。
+			Actor: &protocolwire.Actor{UserId: 7, PermissionKeys: []string{permissionCreateClients}},
 		},
 		Method: "POST",
 		Path:   "/api/oauth/token",
@@ -65,6 +67,51 @@ func seedClient(t *testing.T, server *oauthServer, clientType, secret string) cl
 	return record
 }
 
+// errorReason 读取错误响应里的 reason。错误现在以终端响应（StatusCode + 符合
+// responseSchema 的 Body）返回，宿主不再接受只带 Error 字段的响应（会被映射成
+// 502 extensions.route_unavailable），所以这里从 body 反推 reason。
+func errorReason(t *testing.T, response *pluginwire.RouteResponse) string {
+	t.Helper()
+	if response == nil {
+		return ""
+	}
+	if detail := response.GetError(); detail != nil {
+		return detail.GetReason()
+	}
+	if response.GetBody() == nil || response.GetBody().GetValue() == nil {
+		return ""
+	}
+	values := response.GetBody().GetValue().AsMap()
+	if code, ok := values["error"].(string); ok && code != "" {
+		return "oauth2." + code
+	}
+	if status, ok := values["status"].(string); ok && status == "error" {
+		if code, ok := values["error"].(string); ok {
+			return "oauth2." + code
+		}
+	}
+	return ""
+}
+
+// hasError 判断响应是否为错误响应（Error 字段或 status=error / 带 error 键）。
+func hasError(response *pluginwire.RouteResponse) bool {
+	if response == nil {
+		return false
+	}
+	if response.GetError() != nil {
+		return true
+	}
+	if response.GetBody() == nil || response.GetBody().GetValue() == nil {
+		return false
+	}
+	values := response.GetBody().GetValue().AsMap()
+	if _, ok := values["error"].(string); ok {
+		return true
+	}
+	status, _ := values["status"].(string)
+	return status == "error"
+}
+
 func responseValues(t *testing.T, response *pluginwire.RouteResponse) map[string]any {
 	t.Helper()
 	if response == nil || response.GetBody() == nil || response.GetBody().GetValue() == nil {
@@ -83,6 +130,14 @@ func TestNormalizeScopes(t *testing.T) {
 	}
 	if _, err := normalizeScopes("email", []string{scopeProfile}); !errors.Is(err, errUnknownScope) {
 		t.Fatalf("unknown scope must be rejected, got %v", err)
+	}
+	// profile 必选：请求了其他 scope 但没带 profile 时，后端无条件并入且排在最前。
+	scopes, err = normalizeScopes("topic.count users.groups", []string{scopeProfile, scopeTopicCount, scopeUserGroups})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(scopes) != 3 || scopes[0] != scopeProfile || scopes[1] != scopeTopicCount || scopes[2] != scopeUserGroups {
+		t.Fatalf("profile union failed: %#v", scopes)
 	}
 	scopes, err = normalizeScopes("", nil)
 	if err != nil || len(scopes) != 1 || scopes[0] != scopeProfile {
@@ -393,7 +448,7 @@ func TestClientManagementPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if response.GetError() == nil {
+	if !hasError(response) {
 		t.Fatal("foreign owner deletion must fail closed")
 	}
 	if _, ok := server.store.getClient(ctx, "sfo_client_test0001"); !ok {
@@ -407,8 +462,8 @@ func TestClientManagementPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin delete failed: %v", err)
 	}
-	if response.GetError() != nil {
-		t.Fatalf("admin delete must pass: %v", response.GetError())
+	if hasError(response) {
+		t.Fatalf("admin delete must pass: %#v", errorReason(t, response))
 	}
 	if _, ok := server.store.getClient(ctx, "sfo_client_test0001"); ok {
 		t.Fatal("client must be deleted")
@@ -469,3 +524,176 @@ func TestConsentFlowIssuesCode(t *testing.T) {
 	}
 	_ = summary
 }
+
+// TestClientCreationPermissionMatrix 覆盖 create_clients 权限与总闸（allow_user_clients）的组合，
+// 以及「管理自己已有的应用不受总闸影响」「撤销授权不要求应用管理权限」这两条边界。
+func TestClientCreationPermissionMatrix(t *testing.T) {
+	ctx := context.Background()
+
+	serverWithGate := func(t *testing.T, allowUserApps bool) *oauthServer {
+		t.Helper()
+		server := testServer(t)
+		cfg := defaultSettings()
+		cfg.AllowUserApps = allowUserApps
+		server.settingsCache = &cfg
+		return server
+	}
+	withActor := func(routeID string, userID int64, permissions []string, values map[string]any) *pluginwire.RouteRequest {
+		request := testRequest(routeID, values)
+		request.Context.Actor = &protocolwire.Actor{UserId: userID, PermissionKeys: permissions}
+		return request
+	}
+	createBody := map[string]any{
+		"name": "Self Service App", "clientType": "public",
+		"redirectUris": []any{"https://app.example.com/callback"},
+	}
+	updateBody := map[string]any{
+		"clientId": "sfo_client_test0001", "name": "Renamed",
+		"redirectUris": []any{"https://app.example.com/callback"},
+	}
+	assertForbidden := func(t *testing.T, response *pluginwire.RouteResponse, reason string) {
+		t.Helper()
+		if !hasError(response) {
+			t.Fatalf("expected %s, got a success response", reason)
+		}
+		if got := errorReason(t, response); got != reason {
+			t.Fatalf("reason = %q, want %q", got, reason)
+		}
+	}
+
+	t.Run("仅登录无权限：列表与创建都拒绝", func(t *testing.T) {
+		server := serverWithGate(t, true)
+		list, err := server.handleClientsList(ctx, withActor(routeClientsListID, 7, nil, map[string]any{}))
+		if err != nil {
+			t.Fatalf("list failed: %v", err)
+		}
+		assertForbidden(t, list, "oauth2.client_list_forbidden")
+		create, err := server.handleClientCreate(ctx, withActor(routeClientsCreateID, 7, nil, createBody))
+		if err != nil {
+			t.Fatalf("create failed: %v", err)
+		}
+		assertForbidden(t, create, "oauth2.client_creation_forbidden")
+	})
+
+	t.Run("持权且总闸开：只看得到自己的，可创建", func(t *testing.T) {
+		server := serverWithGate(t, true)
+		seedClient(t, server, "confidential", "sfos_secret_value") // owner = 7
+		list, err := server.handleClientsList(ctx,
+			withActor(routeClientsListID, 7, []string{permissionCreateClients}, map[string]any{}))
+		if err != nil {
+			t.Fatalf("list failed: %v", err)
+		}
+		if hasError(list) {
+			t.Fatalf("list must pass: %#v", errorReason(t, list))
+		}
+		values := responseValues(t, list)
+		if values["canCreate"] != true || values["canManageAll"] != false {
+			t.Fatalf("flags = %#v", values)
+		}
+		clients, _ := values["clients"].([]any)
+		if len(clients) != 1 {
+			t.Fatalf("holder must only see own clients: %#v", values["clients"])
+		}
+		create, err := server.handleClientCreate(ctx,
+			withActor(routeClientsCreateID, 7, []string{permissionCreateClients}, createBody))
+		if err != nil {
+			t.Fatalf("create failed: %v", err)
+		}
+		if hasError(create) {
+			t.Fatalf("create must pass: %#v", errorReason(t, create))
+		}
+	})
+
+	t.Run("持权但总闸关：不能新建，仍可管理既有应用", func(t *testing.T) {
+		server := serverWithGate(t, false)
+		seedClient(t, server, "confidential", "sfos_secret_value")
+		list, err := server.handleClientsList(ctx,
+			withActor(routeClientsListID, 7, []string{permissionCreateClients}, map[string]any{}))
+		if err != nil {
+			t.Fatalf("list failed: %v", err)
+		}
+		if hasError(list) {
+			t.Fatalf("list must pass with the gate closed: %#v", errorReason(t, list))
+		}
+		if responseValues(t, list)["canCreate"] != false {
+			t.Fatal("canCreate must be false when the site gate is closed")
+		}
+		create, err := server.handleClientCreate(ctx,
+			withActor(routeClientsCreateID, 7, []string{permissionCreateClients}, createBody))
+		if err != nil {
+			t.Fatalf("create failed: %v", err)
+		}
+		assertForbidden(t, create, "oauth2.client_creation_disabled")
+		update, err := server.handleClientUpdate(ctx,
+			withActor(routeClientsUpdateID, 7, []string{permissionCreateClients}, updateBody))
+		if err != nil {
+			t.Fatalf("update failed: %v", err)
+		}
+		if hasError(update) {
+			t.Fatalf("owner update must survive a closed creation gate: %#v", errorReason(t, update))
+		}
+	})
+
+	t.Run("管理员：看全部且不受总闸限制", func(t *testing.T) {
+		server := serverWithGate(t, false)
+		seedClient(t, server, "confidential", "sfos_secret_value") // owner = 7，管理员是 42
+		list, err := server.handleClientsList(ctx,
+			withActor(routeClientsListID, 42, []string{permissionManageClients}, map[string]any{}))
+		if err != nil {
+			t.Fatalf("list failed: %v", err)
+		}
+		if hasError(list) {
+			t.Fatalf("admin list must pass: %#v", errorReason(t, list))
+		}
+		values := responseValues(t, list)
+		if values["canManageAll"] != true || values["canCreate"] != true {
+			t.Fatalf("admin flags = %#v", values)
+		}
+		clients, _ := values["clients"].([]any)
+		if len(clients) != 1 {
+			t.Fatalf("admin must see other owners' clients: %#v", values["clients"])
+		}
+		create, err := server.handleClientCreate(ctx,
+			withActor(routeClientsCreateID, 42, []string{permissionManageClients}, createBody))
+		if err != nil {
+			t.Fatalf("create failed: %v", err)
+		}
+		if hasError(create) {
+			t.Fatalf("admin create must pass with a closed gate: %#v", errorReason(t, create))
+		}
+	})
+
+	t.Run("持权用户不能改他人应用", func(t *testing.T) {
+		server := serverWithGate(t, true)
+		seedClient(t, server, "confidential", "sfos_secret_value") // owner = 7
+		update, err := server.handleClientUpdate(ctx,
+			withActor(routeClientsUpdateID, 99, []string{permissionCreateClients}, updateBody))
+		if err != nil {
+			t.Fatalf("update failed: %v", err)
+		}
+		assertForbidden(t, update, "oauth2.client_forbidden")
+	})
+
+	t.Run("权限被收回后连自己的应用也改不动", func(t *testing.T) {
+		server := serverWithGate(t, true)
+		seedClient(t, server, "confidential", "sfos_secret_value") // owner = 7
+		update, err := server.handleClientUpdate(ctx, withActor(routeClientsUpdateID, 7, nil, updateBody))
+		if err != nil {
+			t.Fatalf("update failed: %v", err)
+		}
+		assertForbidden(t, update, "oauth2.client_forbidden")
+	})
+
+	t.Run("撤销自己的授权不要求应用管理权限", func(t *testing.T) {
+		server := serverWithGate(t, true)
+		response, err := server.handleAuthorizationRevoke(ctx,
+			withActor(routeAuthorizationsRevok, 7, nil, map[string]any{"clientId": "sfo_client_test0001"}))
+		if err != nil {
+			t.Fatalf("revoke failed: %v", err)
+		}
+		if hasError(response) {
+			t.Fatalf("revoking own authorization must not require client permissions: %#v", errorReason(t, response))
+		}
+	})
+}
+

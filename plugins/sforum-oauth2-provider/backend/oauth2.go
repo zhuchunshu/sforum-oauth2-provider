@@ -21,6 +21,7 @@ var (
 	errClientNotFound     = errors.New("oauth2: client not found")
 	errInvalidSecret      = errors.New("oauth2: invalid client secret")
 	errUnknownScope       = errors.New("oauth2: unknown scope")
+	errScopeNotRegistered = errors.New("oauth2: scope is not registered for this client")
 	errInvalidRedirectURI = errors.New("oauth2: redirect uri is not registered")
 	errInvalidGrant       = errors.New("oauth2: invalid or expired grant")
 	errPKCEFailed         = errors.New("oauth2: pkce verification failed")
@@ -51,6 +52,8 @@ func hashesEqual(left, right string) bool {
 }
 
 // normalizeScopes 把空格分隔的 scope 字符串规范为去重且稳定的列表。
+// profile 是「用 SForum 登录」的隐含授予：无论请求了什么，身份读取始终在列
+// 且稳定排在最前。这让 authorize 与 clients 两条路径共享同一条不变量。
 func normalizeScopes(requested string, allowed []string) ([]string, error) {
 	if len(allowed) == 0 {
 		allowed = []string{scopeProfile}
@@ -71,14 +74,53 @@ func normalizeScopes(requested string, allowed []string) ([]string, error) {
 		seen[scope] = struct{}{}
 		result = append(result, scope)
 	}
-	if len(result) == 0 {
-		result = append(result, scopeProfile)
+	ordered := make([]string, 0, len(result)+1)
+	ordered = append(ordered, scopeProfile)
+	for _, scope := range result {
+		if scope != scopeProfile {
+			ordered = append(ordered, scope)
+		}
 	}
-	return result, nil
+	return ordered, nil
 }
 
 func joinScopes(scopes []string) string {
 	return strings.Join(scopes, " ")
+}
+
+// resolveAuthorizeScopes 决定一次授权请求实际生效的 scope 集合，三层约束从内到外：
+//
+//  1. 请求未带 scope 时回落到应用登记的范围（RFC 6749 §3.3 允许服务端预定义默认值）。
+//     应用在后台勾的权限因此就是「它默认会申请的权限」，而不是一张无人读取的配置。
+//  2. 站点 allowed_scopes 是硬上限，由 normalizeScopes 负责（含 profile 必选）。
+//  3. 应用登记的范围是该应用的自我约束：请求超出即 invalid_scope。没有这一层，
+//     任何应用都能凭 client_id 直接索取站点开放的全部权限，后台的勾选形同虚设。
+//
+// profile 始终放行：它是 normalizeScopes 强制并入的身份基底，不能因为存量应用
+// 的 scopes 列里没有它就把请求打回。
+func resolveAuthorizeScopes(requested string, registered []string, allowed []string) ([]string, error) {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		requested = joinScopes(registered)
+	}
+	scopes, err := normalizeScopes(requested, allowed)
+	if err != nil {
+		return nil, err
+	}
+	if len(registered) == 0 {
+		return scopes, nil
+	}
+	permitted := make(map[string]struct{}, len(registered)+1)
+	permitted[scopeProfile] = struct{}{}
+	for _, scope := range registered {
+		permitted[scope] = struct{}{}
+	}
+	for _, scope := range scopes {
+		if _, ok := permitted[scope]; !ok {
+			return nil, fmt.Errorf("%w: %s", errScopeNotRegistered, scope)
+		}
+	}
+	return scopes, nil
 }
 
 // scopeSatisfies 判断已授权的 scope 是否覆盖本次请求（用于跳过重复确认）。
@@ -120,6 +162,27 @@ func matchRedirectURI(registered []string, candidate string) bool {
 // validRedirectURIRegistration 在登记阶段做与运行时一致的校验。
 func validRedirectURIRegistration(candidate string) bool {
 	return matchRedirectURI([]string{candidate}, candidate)
+}
+
+// validLogoURL 校验应用 logo 地址：允许空（表示用生成 icon）；非空须 https
+// （本地开发放行 http://127.0.0.1 / localhost），有 host、无 fragment、长度受限。
+// 消费端会把它作为 <img src> 加载，因此约束与回调地址同源同风格。
+func validLogoURL(candidate string) bool {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return true
+	}
+	if len(candidate) > 2048 {
+		return false
+	}
+	parsed, err := url.Parse(candidate)
+	if err != nil || parsed.Host == "" || parsed.Fragment != "" {
+		return false
+	}
+	if parsed.Scheme == "https" {
+		return true
+	}
+	return parsed.Scheme == "http" && (strings.HasPrefix(parsed.Host, "127.0.0.1") || strings.HasPrefix(parsed.Host, "localhost"))
 }
 
 // verifyPKCE 校验 RFC 7636 的 code_challenge，支持 S256 与 plain。

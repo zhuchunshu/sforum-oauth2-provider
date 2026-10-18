@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.oauth2-provider.route.docs.response@1",
+  "description": "接入说明页的数据契约：scope 清单、端点清单与错误码表。页面正文（散文与版式）由包内公开 L2 组件渲染，这里只提供会随代码漂移的部分。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "scopes", "endpoints", "errors"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["zh-CN", "en-US"],
+            "properties": {
+              "zh-CN": { "type": "string" },
+              "en-US": { "type": "string" }
+            }
+          },
+          "alwaysOn": { "type": "boolean" }
+        }
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "path", "guard", "note", "internal"],
+        "properties": {
+          "method": { "type": "string" },
+          "path": { "type": "string" },
+          "guard": { "type": "string" },
+          "note": { "type": "string" },
+          "internal": { "type": "boolean" }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "meaning", "when"],
+        "properties": {
+          "code": { "type": "string" },
+          "meaning": { "type": "string" },
+          "when": { "type": "string" }
+        }
+      }
+    }
+  }
+}

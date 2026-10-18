@@ -21,25 +21,31 @@ type oauthStore struct {
 
 	db *sql.DB
 
-	clients  map[string]clientRecord
-	requests map[string]requestRecord
-	tokens   map[string]tokenRecord
-	consents map[string]consentRecord
+	clients     map[string]clientRecord
+	requests    map[string]requestRecord
+	tokens      map[string]tokenRecord
+	consents    map[string]consentRecord
+	emailClaims map[string]emailClaimRecord
 }
 
 // clientRecord 是一条 OAuth2 应用记录。secret_hash 为空表示公开客户端。
 type clientRecord struct {
-	ClientID     string   `json:"clientId"`
-	SecretHash   string   `json:"secretHash"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	ClientType   string   `json:"clientType"`
-	RedirectURIs []string `json:"redirectUris"`
-	Scopes       []string `json:"scopes"`
-	OwnerUserID  int64    `json:"ownerUserId"`
-	OwnerName    string   `json:"ownerName"`
-	CreatedAt    string   `json:"createdAt"`
-	LastUsedAt   string   `json:"lastUsedAt"`
+	ClientID    string `json:"clientId"`
+	SecretHash  string `json:"secretHash"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ClientType  string `json:"clientType"`
+	LogoURL     string `json:"logoUrl"`
+	// AttachmentPublicID 是 Core 附件体系里的 publicId（上传的图标）。
+	// 与 LogoURL 互斥：任何一次保存只保留一个，切换时旧的一侧必须被清理
+	// （附件要走 release，否则引用永远挂着、图永不回收）。
+	AttachmentPublicID string   `json:"attachmentPublicId"`
+	RedirectURIs       []string `json:"redirectUris"`
+	Scopes             []string `json:"scopes"`
+	OwnerUserID        int64    `json:"ownerUserId"`
+	OwnerName          string   `json:"ownerName"`
+	CreatedAt          string   `json:"createdAt"`
+	LastUsedAt         string   `json:"lastUsedAt"`
 }
 
 // requestRecord 是一次待确认的授权请求（授权码前置状态）。
@@ -80,14 +86,26 @@ type consentRecord struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+// emailClaimRecord 是授权时快照下来的本人邮箱（scope=email）。
+// 主键是 (user, client)：撤销该应用的授权、或新授权收窄到不含 email 时整行删除，
+// 不做跨应用共享，避免「在 A 授权过，B 也能拿到」。
+type emailClaimRecord struct {
+	UserID        int64  `json:"userId"`
+	ClientID      string `json:"clientId"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"emailVerified"`
+	CapturedAt    string `json:"capturedAt"`
+}
+
 const timeLayout = time.RFC3339Nano
 
 func newOAuthStore() *oauthStore {
 	store := &oauthStore{
-		clients:  map[string]clientRecord{},
-		requests: map[string]requestRecord{},
-		tokens:   map[string]tokenRecord{},
-		consents: map[string]consentRecord{},
+		clients:     map[string]clientRecord{},
+		requests:    map[string]requestRecord{},
+		tokens:      map[string]tokenRecord{},
+		consents:    map[string]consentRecord{},
+		emailClaims: map[string]emailClaimRecord{},
 	}
 	if url := strings.TrimSpace(os.Getenv("SFORUM_DATABASE_URL")); url != "" {
 		if db, err := sql.Open("pgx", url); err == nil {
@@ -127,6 +145,8 @@ func (s *oauthStore) ensureSchema(ctx context.Context) error {
   name text NOT NULL,
   description text NOT NULL DEFAULT '',
   client_type text NOT NULL DEFAULT 'confidential',
+  logo_url text NOT NULL DEFAULT '',
+  attachment_public_id text NOT NULL DEFAULT '',
   redirect_uris text NOT NULL DEFAULT '',
   scopes text NOT NULL DEFAULT '',
   owner_user_id bigint NOT NULL DEFAULT 0,
@@ -167,7 +187,18 @@ func (s *oauthStore) ensureSchema(ctx context.Context) error {
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, client_id)
 )`,
+		`CREATE TABLE IF NOT EXISTS oauth_email_claims (
+  user_id bigint NOT NULL,
+  client_id text NOT NULL,
+  email text NOT NULL,
+  email_verified boolean NOT NULL DEFAULT false,
+  captured_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, client_id)
+)`,
 		`CREATE INDEX IF NOT EXISTS oauth_tokens_client_idx ON oauth_tokens (client_id)`,
+		// 已部署库的幂等迁移：logo_url / attachment_public_id 都是后加的列，旧库没有它们。
+		`ALTER TABLE oauth_clients ADD COLUMN IF NOT EXISTS logo_url text NOT NULL DEFAULT ''`,
+		`ALTER TABLE oauth_clients ADD COLUMN IF NOT EXISTS attachment_public_id text NOT NULL DEFAULT ''`,
 	}
 	for _, statement := range statements {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
@@ -192,13 +223,16 @@ func (s *oauthStore) putClient(ctx context.Context, record clientRecord) error {
 		return nil
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO oauth_clients
-  (client_id, secret_hash, name, description, client_type, redirect_uris, scopes, owner_user_id, owner_name, created_at, last_used_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL)
+  (client_id, secret_hash, name, description, client_type, logo_url, attachment_public_id, redirect_uris, scopes, owner_user_id, owner_name, created_at, last_used_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL)
 ON CONFLICT (client_id) DO UPDATE SET
   secret_hash = EXCLUDED.secret_hash, name = EXCLUDED.name, description = EXCLUDED.description,
-  client_type = EXCLUDED.client_type, redirect_uris = EXCLUDED.redirect_uris, scopes = EXCLUDED.scopes,
+  client_type = EXCLUDED.client_type, logo_url = EXCLUDED.logo_url,
+  attachment_public_id = EXCLUDED.attachment_public_id,
+  redirect_uris = EXCLUDED.redirect_uris, scopes = EXCLUDED.scopes,
   owner_user_id = EXCLUDED.owner_user_id, owner_name = EXCLUDED.owner_name`,
 		record.ClientID, record.SecretHash, record.Name, record.Description, record.ClientType,
+		record.LogoURL, record.AttachmentPublicID,
 		strings.Join(record.RedirectURIs, "\n"), strings.Join(record.Scopes, " "),
 		record.OwnerUserID, record.OwnerName, parseTimeOrNow(record.CreatedAt))
 	return err
@@ -215,7 +249,7 @@ func (s *oauthStore) getClient(ctx context.Context, clientID string) (clientReco
 		return record, ok
 	}
 	row := s.db.QueryRowContext(ctx, `SELECT client_id, secret_hash, name, description, client_type,
-  redirect_uris, scopes, owner_user_id, owner_name, created_at, last_used_at
+  logo_url, attachment_public_id, redirect_uris, scopes, owner_user_id, owner_name, created_at, last_used_at
 FROM oauth_clients WHERE client_id = $1`, clientID)
 	record, err := scanClient(row)
 	if err != nil {
@@ -241,8 +275,8 @@ func (s *oauthStore) listClients(ctx context.Context, ownerUserID int64) []clien
 		sortClients(result)
 		return result
 	}
-	query := `SELECT client_id, secret_hash, name, description, client_type, redirect_uris, scopes,
-  owner_user_id, owner_name, created_at, last_used_at FROM oauth_clients`
+	query := `SELECT client_id, secret_hash, name, description, client_type, logo_url, attachment_public_id,
+  redirect_uris, scopes, owner_user_id, owner_name, created_at, last_used_at FROM oauth_clients`
 	args := []any{}
 	if ownerUserID > 0 {
 		query += ` WHERE owner_user_id = $1`
@@ -288,10 +322,16 @@ func (s *oauthStore) deleteClient(ctx context.Context, clientID string) error {
 				delete(s.requests, key)
 			}
 		}
+		for key, record := range s.emailClaims {
+			if record.ClientID == clientID {
+				delete(s.emailClaims, key)
+			}
+		}
 		return nil
 	}
 	for _, statement := range []string{
 		`DELETE FROM oauth_consents WHERE client_id = $1`,
+		`DELETE FROM oauth_email_claims WHERE client_id = $1`,
 		`DELETE FROM oauth_tokens WHERE client_id = $1`,
 		`DELETE FROM oauth_requests WHERE client_id = $1`,
 		`DELETE FROM oauth_clients WHERE client_id = $1`,
@@ -510,6 +550,75 @@ func (s *oauthStore) markRefreshUsed(ctx context.Context, tokenHash string) {
 	_, _ = s.db.ExecContext(ctx, `UPDATE oauth_tokens SET created_at = now() WHERE token_hash = $1`, tokenHash)
 }
 
+// ---------- 邮箱快照（email claims） ----------
+
+func (s *oauthStore) putEmailClaim(ctx context.Context, record emailClaimRecord) error {
+	if s == nil {
+		return errors.New("store unavailable")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		if record.CapturedAt == "" {
+			record.CapturedAt = time.Now().UTC().Format(timeLayout)
+		}
+		s.emailClaims[consentKey(record.UserID, record.ClientID)] = record
+		return nil
+	}
+	capturedAt := time.Now().UTC()
+	if record.CapturedAt != "" {
+		if parsed, err := time.Parse(timeLayout, record.CapturedAt); err == nil {
+			capturedAt = parsed.UTC()
+		}
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO oauth_email_claims
+  (user_id, client_id, email, email_verified, captured_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id, client_id) DO UPDATE SET
+  email = EXCLUDED.email,
+  email_verified = EXCLUDED.email_verified,
+  captured_at = EXCLUDED.captured_at`,
+		record.UserID, record.ClientID, record.Email, record.EmailVerified, capturedAt)
+	return err
+}
+
+func (s *oauthStore) getEmailClaim(ctx context.Context, userID int64, clientID string) (emailClaimRecord, bool) {
+	if s == nil {
+		return emailClaimRecord{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		record, ok := s.emailClaims[consentKey(userID, clientID)]
+		return record, ok
+	}
+	var record emailClaimRecord
+	var capturedAt time.Time
+	err := s.db.QueryRowContext(ctx, `SELECT user_id, client_id, email, email_verified, captured_at
+FROM oauth_email_claims WHERE user_id = $1 AND client_id = $2`, userID, clientID).Scan(
+		&record.UserID, &record.ClientID, &record.Email, &record.EmailVerified, &capturedAt)
+	if err != nil {
+		return emailClaimRecord{}, false
+	}
+	record.CapturedAt = capturedAt.UTC().Format(timeLayout)
+	return record, true
+}
+
+func (s *oauthStore) deleteEmailClaim(ctx context.Context, userID int64, clientID string) error {
+	if s == nil {
+		return errors.New("store unavailable")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		delete(s.emailClaims, consentKey(userID, clientID))
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM oauth_email_claims WHERE user_id = $1 AND client_id = $2`,
+		userID, clientID)
+	return err
+}
+
 // ---------- 授权记录（consents） ----------
 
 func (s *oauthStore) upsertConsent(ctx context.Context, userID int64, clientID, scope string) error {
@@ -633,8 +742,8 @@ func scanClient(row rowScanner) (clientRecord, error) {
 	var createdAt time.Time
 	var lastUsed sql.NullTime
 	if err := row.Scan(&record.ClientID, &record.SecretHash, &record.Name, &record.Description,
-		&record.ClientType, &redirectURIs, &scopes, &record.OwnerUserID, &record.OwnerName,
-		&createdAt, &lastUsed); err != nil {
+		&record.ClientType, &record.LogoURL, &record.AttachmentPublicID, &redirectURIs, &scopes,
+		&record.OwnerUserID, &record.OwnerName, &createdAt, &lastUsed); err != nil {
 		return clientRecord{}, err
 	}
 	record.RedirectURIs = splitList(redirectURIs, "\n")

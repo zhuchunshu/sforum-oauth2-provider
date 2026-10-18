@@ -127,12 +127,12 @@
       "key": "sforum.oauth2-provider.allowed_scopes",
       "label": { "zh-CN": "允许的权限范围", "en-US": "Allowed scopes" },
       "description": {
-        "zh-CN": "以空格分隔。v1 支持 profile（读取用户名、昵称与账号状态）。",
-        "en-US": "Space-separated. v1 supports profile (read username, display name, and account status)."
+        "zh-CN": "以空格分隔，配置的是额外可选范围。profile（读取用户名、昵称、注册时间与账号状态）为基础范围，始终授予且始终可选，无需在此填写。email 会读取并保存本人邮箱一次，属于敏感范围，站点需确认宿主授予 users.email.read 能力后才可用。",
+        "en-US": "Space-separated; this configures additional optional scopes. profile (read username, display name, registration date and account status) is the base scope: always granted and always selectable, no need to list it here. email reads and stores the user's own address once and is sensitive: the site must have approved the users.email.read host capability for it to work."
       },
       "type": "text",
-      "default": "profile",
-      "placeholder": "profile",
+      "default": "email avatar topic.count comment.count users.groups",
+      "placeholder": "email avatar topic.count comment.count users.groups",
       "groupId": "access"
     }
   ]

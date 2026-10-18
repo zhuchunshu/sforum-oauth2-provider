@@ -122,28 +122,33 @@ func (s *oauthServer) verifyAuthorizeRequest(
 	if !ok {
 		return clientRecord{}, "", invalidRequest("unknown client_id")
 	}
+	// 已知 client 之后的错误一律把 client 一起返回：handleAuthorize 需要它来决定
+	// 能否按 RFC 6749 §4.1.2.1 把错误回跳给已登记的回调地址。
 	if query.RedirectURI == "" {
-		return clientRecord{}, "", invalidRequest("redirect_uri is required")
+		return client, "", invalidRequest("redirect_uri is required")
 	}
 	if !matchRedirectURI(client.RedirectURIs, query.RedirectURI) {
-		return clientRecord{}, "", invalidRequest("redirect_uri is not registered for this client")
+		return client, "", invalidRequest("redirect_uri is not registered for this client")
 	}
 	if query.ResponseType != "code" {
-		return clientRecord{}, "", oauthError{
+		return client, "", oauthError{
 			Code: "unsupported_response_type", Description: "only response_type=code is supported",
 			Status: http.StatusBadRequest,
 		}
 	}
 	settings := s.settingsSnapshot(ctx, hostCtx)
-	scopes, err := normalizeScopes(query.Scope, settings.AllowedScopes)
+	scopes, err := resolveAuthorizeScopes(query.Scope, client.Scopes, settings.AllowedScopes)
 	if err != nil {
-		return clientRecord{}, "", invalidScope("requested scope is not allowed")
+		if errors.Is(err, errScopeNotRegistered) {
+			return client, "", invalidScope("requested scope is not registered for this client")
+		}
+		return client, "", invalidScope("requested scope is not allowed")
 	}
 	if !validCodeChallenge(query.CodeChallenge, query.CodeChallengeMethod) {
-		return clientRecord{}, "", invalidRequest("code_challenge is invalid")
+		return client, "", invalidRequest("code_challenge is invalid")
 	}
 	if client.ClientType == "public" && query.CodeChallenge == "" {
-		return clientRecord{}, "", invalidRequest("public clients must use PKCE (code_challenge)")
+		return client, "", invalidRequest("public clients must use PKCE (code_challenge)")
 	}
 	return client, joinScopes(scopes), nil
 }
@@ -161,9 +166,11 @@ func (s *oauthServer) handleAuthorize(
 			if query.RedirectURI != "" && matchRedirectURI(client.RedirectURIs, query.RedirectURI) {
 				return redirectWithError(request, query.RedirectURI, query.State, oauthErr.Code, oauthErr.Description)
 			}
-			return routeFailure(request.GetContext(), oauthErr.Status, "oauth2."+oauthErr.Code, oauthErr.Description), nil
+			return routeFailure(request.GetContext(), oauthErr.Status, "oauth2."+oauthErr.Code,
+				oauthErr.Description, schemaAuthorizeResponse)
 		}
-		return routeFailure(request.GetContext(), http.StatusBadRequest, "oauth2.invalid_request", err.Error()), nil
+		return routeFailure(request.GetContext(), http.StatusBadRequest, "oauth2.invalid_request",
+			err.Error(), schemaAuthorizeResponse)
 	}
 
 	userID := actorUserID(request)
@@ -187,7 +194,7 @@ func (s *oauthServer) handleAuthorize(
 		requestToken, err := generateToken(prefixConsentRequest)
 		if err != nil {
 			return routeFailure(request.GetContext(), http.StatusInternalServerError, "oauth2.token_generation_failed",
-				"could not create a consent request"), nil
+				"could not create a consent request", schemaAuthorizeResponse)
 		}
 		if err := s.store.putRequest(ctx, requestRecord{
 			TokenHash: hashToken(requestToken), ClientID: client.ClientID, UserID: userID,
@@ -196,19 +203,28 @@ func (s *oauthServer) handleAuthorize(
 			ExpiresAt: time.Now().UTC().Add(time.Duration(settings.CodeTTL) * time.Second).Format(timeLayout),
 		}); err != nil {
 			return routeFailure(request.GetContext(), http.StatusInternalServerError, "oauth2.consent_store_failed",
-				"could not persist the consent request"), nil
+				"could not persist the consent request", schemaAuthorizeResponse)
 		}
-		return routeRedirect(request.GetContext(), "/api/oauth/consent?request="+url.QueryEscape(requestToken))
+		consentTarget := "/api/oauth/consent?request=" + url.QueryEscape(requestToken)
+		// 带上原始授权请求：确认页的「切换账号」退出后要回到同一个请求
+		// （state / PKCE / scope 全部保留），不能只回裸端点。
+		if returnTo := requestURLWithQuery(request); returnTo != "" {
+			consentTarget += "&return=" + url.QueryEscape(returnTo)
+		}
+		return routeRedirect(request.GetContext(), consentTarget)
 	}
 
 	if !hasConsent {
 		// require_consent 关闭时的首次授权：直接放行，但仍记录授权以便用户管理。
 		_ = s.store.upsertConsent(ctx, userID, client.ClientID, scope)
 	}
+	// 授予 email 时在这里快照本人邮箱；委派只在本路由调用里有效，过期无法补读。
+	// 未授予则清掉旧快照（本次授权收窄）。失败不影响授权本身。
+	s.captureEmailClaim(ctx, request.GetContext(), userID, client.ClientID, scope)
 	code, err := s.issueAuthorizationCode(ctx, client, userID, scope, query)
 	if err != nil {
 		return routeFailure(request.GetContext(), http.StatusInternalServerError, "oauth2.code_generation_failed",
-			"could not issue an authorization code"), nil
+			"could not issue an authorization code", schemaAuthorizeResponse)
 	}
 	return redirectWithCode(request, query.RedirectURI, query.State, code)
 }
@@ -280,9 +296,11 @@ func (s *oauthServer) handleConsentSummary(
 	client, found := s.store.getClient(ctx, pending.ClientID)
 	clientName := pending.ClientID
 	description := ""
+	icon := iconSource{Kind: iconKindGenerated}
 	if found {
 		clientName = client.Name
 		description = client.Description
+		icon = clientIconSource(client)
 	}
 	scopes := make([]any, 0)
 	for _, scope := range strings.Fields(pending.Scope) {
@@ -298,20 +316,12 @@ func (s *oauthServer) handleConsentSummary(
 		"clientId":          pending.ClientID,
 		"clientName":        clientName,
 		"clientDescription": description,
+		"clientLogo":        icon.URL,
+		"icon":              appIconDescriptor(pending.ClientID, clientName, icon),
 		"redirectUri":       pending.RedirectURI,
 		"scopes":            scopes,
 		"user":              user,
 	})
-}
-
-// scopeLabel 提供人类可读的权限说明。
-func scopeLabel(scope string) string {
-	switch scope {
-	case scopeProfile:
-		return "读取你的用户名、昵称与账号状态"
-	default:
-		return scope
-	}
 }
 
 // handleConsentDecision 处理确认页的允许/拒绝（POST /api/oauth/consent/decision）。
@@ -362,6 +372,8 @@ func (s *oauthServer) handleConsentDecision(
 			"status": "error", "error": "invalid_request", "errorDescription": "unknown client",
 		})
 	}
+	// 确认页允许后同样快照一次：用户刚在确认页看到并同意 email 范围。
+	s.captureEmailClaim(ctx, request.GetContext(), userID, pending.ClientID, pending.Scope)
 	code, err := s.issueAuthorizationCode(ctx, client, userID, pending.Scope, authorizeQuery{
 		ClientID: pending.ClientID, RedirectURI: pending.RedirectURI, State: pending.State,
 		CodeChallenge: pending.CodeChallenge, CodeChallengeMethod: pending.CodeChallengeMethod,
@@ -388,42 +400,89 @@ func (s *oauthServer) handleConsentDecision(
 	})
 }
 
-// handleRouteStream 服务授权确认页：stream 模式先 preflight，再一次性输出 HTML。
-// Host 在 Open().Path 上带上原始查询串，request 令牌从那里读取。
+// errUnknownStreamRoute 表示 Open().RouteId 不是本插件的任何 stream 路由。
+var errUnknownStreamRoute = errors.New("unknown oauth2-provider stream route")
+
+// streamResponse 把一条 stream 路由映射成 (状态码, 正文)。
+// 抽成独立方法是为了可测：pluginv2.RouteStream 的字段未导出，单测无法构造它，
+// 只能通过这里验证分发逻辑（见 consent_page_test.go）。
+func (s *oauthServer) streamResponse(open *pluginwire.RouteStreamOpen) (int, []byte, error) {
+	if open == nil {
+		return http.StatusNotFound, nil, errUnknownStreamRoute
+	}
+	switch open.GetRouteId() {
+	case routeConsentPageID:
+		requestToken := ""
+		if parsed, err := url.Parse(open.GetPath()); err == nil {
+			requestToken = parsed.Query().Get("request")
+		}
+		return http.StatusOK, []byte(renderConsentPage(requestToken, s.fallbackAuthorizeQuery(open))), nil
+	default:
+		return http.StatusNotFound, nil, errUnknownStreamRoute
+	}
+}
+
+// handleRouteStream 服务 stream 模式路由：Host 先要一个 preflight（见 routes.go），
+// 随后打开数据流，这里一次性输出整页 HTML 并立即关闭。
 func (s *oauthServer) handleRouteStream(stream *pluginv2.RouteStream) error {
 	if stream == nil || stream.Open() == nil {
 		return fmt.Errorf("missing route stream open")
 	}
-	open := stream.Open()
-	if open.GetRouteId() != routeConsentPageID {
+	status, payload, err := s.streamResponse(stream.Open())
+	if err != nil {
 		return stream.Close(&pluginwire.RouteStreamClose{
-			StatusCode: http.StatusNotFound,
+			StatusCode: uint32(status),
 			Error: &protocolwire.ErrorDetail{
-				Code: protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND,
-				Reason: "oauth2.stream_route_unknown", Message: "unknown oauth2-provider stream route",
+				Code:   protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND,
+				Reason: "oauth2.stream_route_unknown", Message: err.Error(),
 			},
 		})
 	}
-	requestToken := ""
-	if parsed, err := url.Parse(open.GetPath()); err == nil {
-		requestToken = parsed.Query().Get("request")
-	}
-	payload := []byte(renderConsentPage(requestToken, s.fallbackAuthorizeQuery(open)))
 	if err := stream.Send(&protocolwire.DataChunk{
 		Sequence: 1, Data: payload, Final: true,
 	}); err != nil {
 		return err
 	}
-	// 确认页是纯响应流：发送完毕立即关闭，不等待请求方向的空帧。
-	return stream.Close(&pluginwire.RouteStreamClose{StatusCode: http.StatusOK})
+	// 这两个页面都是纯响应流：发送完毕立即关闭，不等待请求方向的空帧。
+	return stream.Close(&pluginwire.RouteStreamClose{StatusCode: uint32(status)})
+}
+
+// requestURLWithQuery 还原本次请求的完整地址（路径 + 原始查询串）。
+// 确认页的「切换账号」与未登录跳转共用它，保证退出/登录后回到同一个授权请求。
+func requestURLWithQuery(request *pluginwire.RouteRequest) string {
+	path := request.GetPath()
+	if path == "" {
+		return ""
+	}
+	if raw := rawQueryFromRequest(request); raw != "" {
+		return path + "?" + raw
+	}
+	return path
+}
+
+// isAuthorizeReturnURL 校验确认页 `return` 参数：只允许本站授权端点的相对路径，
+// 且必须带查询串（裸端点没有 client_id，回跳只会得到一个错误页）。
+// 这个参数来自浏览器地址栏，不能当成可信输入。
+func isAuthorizeReturnURL(value string) bool {
+	if value == "" || strings.HasPrefix(value, "//") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil {
+		return false
+	}
+	return parsed.Path == authorizeEndpointPath && parsed.RawQuery != ""
 }
 
 // fallbackAuthorizeQuery 在确认页无法查询到待确认请求时，提供返回授权端点的链接。
 func (s *oauthServer) fallbackAuthorizeQuery(open *pluginwire.RouteStreamOpen) string {
 	if parsed, err := url.Parse(open.GetPath()); err == nil {
-		if redirect := parsed.Query().Get("return"); redirect != "" {
+		if redirect := parsed.Query().Get("return"); isAuthorizeReturnURL(redirect) {
 			return redirect
 		}
 	}
-	return "/api/oauth/authorize"
+	return authorizeEndpointPath
 }

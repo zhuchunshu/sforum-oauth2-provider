@@ -105,6 +105,7 @@ html.sfo-modal-open {
   border-radius: 0.375rem;
   background: var(--sfo-surface);
   color: var(--sfo-text);
+  text-decoration: none;
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -252,12 +253,186 @@ html.sfo-modal-open {
   white-space: nowrap;
 }
 
+/* 应用行头：统一 icon tile + 应用名（与前台卡片、确认页同一描述符渲染）。 */
+.sfo-app__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.sfo-app__head .sfo-app__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.sfo-avatar,
+.dark .sfo-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--sfo-app);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.12), 0 2px 5px -1px rgba(0, 0, 0, 0.18);
+}
+
+/* 生成图标（统一规范）：方型纯色底 + 5×5 identicon 像素块（SFAvatar 色板，
+   透明度 0.22）+ 居中首字母；custom logo <img> 盖在上面，加载失败移除 img
+   露出生成图标。描述符由 backend/icon.go 下发，与前台、确认页同源。 */
+.sfo-avatar__tile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.sfo-avatar__ident {
+  position: absolute;
+  inset: 8%;
+  width: 84%;
+  height: 84%;
+  pointer-events: none;
+}
+
+.sfo-avatar__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* 透明 logo 不透出渐变底：白实底 + 发丝描边 */
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.sfo-avatar--preview,
+.dark .sfo-avatar--preview {
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
+}
+
+.sfo-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.sfo-logo-row .sfo-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 图标输入：上传为主、地址为次（与前台 /settings/oauth-apps 同一套语义）。
+   .sfo-logo-actions 与预览头像同一行；地址输入收在折叠区里，
+   只有用户主动展开（或旧宿主降级）时才出现。 */
+.sfo-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* label 伪按钮：原生 file input 太丑，但保留真实控件（键盘可达、可拖放）。 */
+.sfo-file-pick {
+  cursor: pointer;
+  margin: 0;
+}
+
+.sfo-icon-status {
+  margin: 0;
+  flex-basis: 100%;
+  min-height: 1.25em;
+}
+
+.sfo-icon-status--error {
+  color: var(--sfo-danger);
+}
+
+.sfo-logo-url {
+  margin-top: 0.625rem;
+  border: 1px solid var(--sfo-border);
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.sfo-logo-url__summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--sfo-muted);
+  user-select: none;
+}
+
+.sfo-logo-url[open] .sfo-logo-url__summary {
+  margin-bottom: 0.5rem;
+}
+
+.sfo-logo-url .sfo-input {
+  width: 100%;
+}
+
 .sfo-app__id {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
   margin-top: 0.2rem;
   min-width: 0;
+}
+
+/* client_id 的可见标签：一串裸标识必须自带名分，否则会被当成密钥。
+   独占一行，值在下一行，窄单元格里布局稳定。 */
+.sfo-app__idlabel {
+  flex: 1 0 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--sfo-muted);
+}
+
+/* 公开/保密标签：与「客户端类型」列的机密/公开区分，措辞用可公开/保密。 */
+.sfo-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0.05rem 0.375rem;
+  border: 1px solid var(--sfo-border);
+  border-radius: 999px;
+  background: var(--sfo-app);
+  color: var(--sfo-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sfo-tag--public {
+  border-color: color-mix(in srgb, var(--sfo-accent) 30%, var(--sfo-border));
+  background: var(--sfo-accent-soft);
+  color: var(--sfo-accent);
+}
+
+.sfo-tag--private {
+  border-color: color-mix(in srgb, #d97706 40%, var(--sfo-border));
+  background: color-mix(in srgb, #d97706 10%, transparent);
+  color: #b45309;
 }
 
 .sfo-app__desc {
@@ -273,13 +448,21 @@ html.sfo-modal-open {
 .sfo-mono {
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 16rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--sfo-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* client_id 完整可读：不再 16rem 截断，放不下就地换行 */
+  overflow-wrap: anywhere;
+}
+
+.sfo-mono--copy {
+  cursor: pointer;
+  color: var(--sfo-text);
+}
+
+.sfo-mono--copy:hover,
+.sfo-mono--copy:focus-visible {
+  color: var(--sfo-accent);
 }
 
 .sfo-uri {
@@ -515,26 +698,56 @@ html.sfo-modal-open {
   line-height: 1.5;
 }
 
+/* 一次性凭据列表：每行 = 名称+标签 / 值+复制 / 一句说明，说明占满整行。 */
 .sfo-pairs {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.5rem 0.75rem;
-  align-items: center;
+  display: block;
   margin: 0.875rem 0 0;
 }
 
-.sfo-pairs dt {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem;
-  color: var(--sfo-muted);
+.sfo-pair {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0;
 }
 
-.sfo-pairs dd {
+.sfo-pair + .sfo-pair {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--sfo-border);
+  padding-top: 0.75rem;
+}
+
+.sfo-pair dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--sfo-text);
+  white-space: nowrap;
+}
+
+.sfo-pair dd {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin: 0;
   min-width: 0;
+}
+
+.sfo-pair__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sfo-muted);
+  line-height: 1.5;
+}
+
+.sfo-pair__note--summary {
+  margin-top: 0.75rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--sfo-border);
 }
 
 .sfo-pairs .sfo-mono {
@@ -642,6 +855,16 @@ html.sfo-modal-open {
     max-width: 100%;
   }
 
+  /* 窄屏：凭据名与值各占一行，长 client_secret 不会把标签挤没。 */
+  .sfo-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.375rem;
+  }
+
+  .sfo-pair dt {
+    white-space: normal;
+  }
+
   .sfo-modal {
     padding: 0;
     align-items: flex-end;
@@ -652,4 +875,105 @@ html.sfo-modal-open {
     max-height: calc(100vh - 1rem);
     border-radius: 0.75rem 0.75rem 0 0;
   }
+}
+
+/* ---------- 权限范围 chip 多选 ---------- */
+
+.sfo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.125rem;
+}
+
+.sfo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--sfo-border);
+  border-radius: 999px;
+  background: var(--sfo-surface);
+  color: var(--sfo-text);
+  font-size: 0.78rem;
+  font-weight: 570;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.sfo-chip:hover {
+  border-color: var(--sfo-accent);
+  color: var(--sfo-accent);
+}
+
+.sfo-chip.is-on {
+  border-color: var(--sfo-accent);
+  background: var(--sfo-accent-soft);
+  color: var(--sfo-accent);
+}
+
+.sfo-chip__name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 650;
+}
+
+.sfo-chip__desc {
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.sfo-chip--locked,
+.sfo-chip--locked:hover {
+  cursor: default;
+  border-style: dashed;
+  background: var(--sfo-app);
+  color: var(--sfo-muted);
+}
+
+.sfo-chip__tag {
+  flex: none;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--sfo-danger-soft);
+  color: var(--sfo-danger);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.sfo-chip__tag--accent {
+  background: var(--sfo-accent-soft);
+  color: var(--sfo-accent);
+}
+
+.sfo-scope-presets {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+}
+
+.sfo-chip-preset {
+  display: inline-flex;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sfo-surface-muted, var(--sfo-accent-soft));
+  color: var(--sfo-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sfo-chip-preset:hover {
+  background: var(--sfo-accent-soft);
+  color: var(--sfo-accent);
+}
+
+.sfo-scopes-note:empty {
+  display: none;
 }

@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	protocolwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
 )
 
 // Host 会对每个 HTTP 路由响应做 JSON Schema 校验，所以 handler 的输出必须与
@@ -46,11 +49,9 @@ func assertMatchesSchema(t *testing.T, name string, response *pluginwire.RouteRe
 		t.Fatalf("%s: response is nil", name)
 	}
 	if response.GetError() != nil {
-		// 结构化错误不会经过 JSON Schema 校验，这里只确认 reason 稳定。
-		if response.GetError().GetReason() == "" {
-			t.Fatalf("%s: structured error without reason", name)
-		}
-		return
+		// 错误现在以终端响应（body）返回；只带 Error 字段会被宿主判成
+		// 502 extensions.route_unavailable，因此这里明确拒绝这种形态。
+		t.Fatalf("%s: routeFailure must return a terminal response, not Error-only", name)
 	}
 	values := responseValues(t, response)
 	schema := compileSchema(t, name)
@@ -89,6 +90,19 @@ func TestAuthorizeResponsesMatchSchema(t *testing.T) {
 		t.Fatalf("expected consent redirect, got %d %#v", response.GetStatusCode(), response)
 	}
 	assertMatchesSchema(t, "authorize.response.json", response)
+	// 确认页地址必须带回原始授权请求：确认页的「切换账号」退出后要回到同一请求。
+	consentLocation := responseValues(t, response)["location"]
+	consentTarget, _ := consentLocation.(string)
+	if !strings.Contains(consentTarget, "/api/oauth/consent?request=") || !strings.Contains(consentTarget, "&return=") {
+		t.Fatalf("consent redirect must carry the original authorize request, got %q", consentTarget)
+	}
+	parsedTarget, err := url.Parse(consentTarget)
+	if err != nil {
+		t.Fatalf("parse consent redirect: %v", err)
+	}
+	if got := parsedTarget.Query().Get("return"); got != "/api/oauth/authorize?client_id=sfo_client_test0001&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback&response_type=code&scope=profile&state=abc" {
+		t.Fatalf("consent return must round-trip the authorize request, got %q", got)
+	}
 
 	// 未登录用户 → 跳转站内登录页。
 	anonymous := testRequest(routeAuthorizeID, map[string]any{})
@@ -116,7 +130,7 @@ func TestAuthorizeResponsesMatchSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authorize invalid: %v", err)
 	}
-	if response.GetError() == nil {
+	if !hasError(response) {
 		t.Fatal("unregistered redirect_uri must fail closed instead of redirecting")
 	}
 }
@@ -145,6 +159,15 @@ func TestConsentResponsesMatchSchema(t *testing.T) {
 		t.Fatalf("summary: %v", err)
 	}
 	assertMatchesSchema(t, "consent-summary.response.json", response)
+	summaryValues := responseValues(t, response)
+	if summaryValues["status"] != "ok" {
+		t.Fatalf("expected ok summary, got %#v", summaryValues)
+	}
+	// 统一 icon 规范：确认页 summary 必须下发与 clients/authorizations 同构的描述符。
+	seededIcon, _ := summaryValues["icon"].(map[string]any)
+	if seededIcon == nil || seededIcon["kind"] != "generated" || seededIcon["initials"] == "" {
+		t.Fatalf("consent summary must carry the unified icon descriptor, got %#v", summaryValues["icon"])
+	}
 
 	expired := testRequest(routeConsentSummaryID, map[string]any{})
 	expired.Method = "GET"
@@ -219,12 +242,37 @@ func TestUserinfoResponseMatchesSchema(t *testing.T) {
 	assertMatchesSchema(t, "userinfo.response.json", response)
 
 	// 成功分支需要 Host 用户投影，这里校验 schema 接受成功负载本身。
+	// 账号时间线与主页链接都是可选字段（宿主可能给不出来），形状必须是这两种之一。
 	success := map[string]any{
-		"sub": "7", "username": "alice", "displayName": "Alice", "status": "active",
+		"sub": "7", "id": 7, "username": "alice", "displayName": "Alice", "status": "active",
 		"scope": scopeProfile, "clientId": "sfo_client_test0001",
+		"createdAt":     "2026-01-02T03:04:05.123456789Z",
+		"updatedAt":     "2026-01-02T03:04:05Z",
+		"profileUrl":    "https://forum.example.com/u/alice",
+		"email":         "alice@example.com",
+		"emailVerified": true,
 	}
 	if err := compileSchema(t, "userinfo.response.json").Validate(success); err != nil {
 		t.Fatalf("userinfo success payload must match schema: %v", err)
+	}
+	// id 是数字形态（与 GitHub 一致）；字符串形态属于契约外，必须被拒。
+	stringID := map[string]any{
+		"sub": "7", "id": "7", "username": "alice", "displayName": "Alice", "status": "active",
+		"scope": scopeProfile, "clientId": "sfo_client_test0001",
+	}
+	if err := compileSchema(t, "userinfo.response.json").Validate(stringID); err == nil {
+		t.Fatal("userinfo id must stay numeric; a string id must be rejected by the schema")
+	}
+
+	// 头像兜底是 data URL；契约只要求 string，这里显式守住，避免以后有人给
+	// avatar 加 format 约束把默认安装的用户挡在门外。
+	withAvatar := map[string]any{
+		"sub": "7", "username": "alice", "displayName": "Alice", "status": "active",
+		"scope": "profile avatar", "clientId": "sfo_client_test0001",
+		"avatar": generatedAvatarDataURL("Alice"),
+	}
+	if err := compileSchema(t, "userinfo.response.json").Validate(withAvatar); err != nil {
+		t.Fatalf("userinfo avatar payload must match schema: %v", err)
 	}
 }
 
@@ -274,15 +322,38 @@ func TestClientManagementMatchesSchema(t *testing.T) {
 	if secret, _ := createdValues["clientSecret"].(string); secret == "" {
 		t.Fatal("confidential client creation must return the secret once")
 	}
+	// 未设置 logo：统一规范生成 icon（kind=generated + GitHub 风格 identicon）。
+	createdClient, _ := createdValues["client"].(map[string]any)
+	createdIcon, _ := createdClient["icon"].(map[string]any)
+	if createdIcon == nil || createdIcon["kind"] != "generated" {
+		t.Fatalf("client without logo must carry a generated icon, got %#v", createdClient["icon"])
+	}
+	if pattern, _ := createdIcon["pattern"].(string); len(pattern) != 25 {
+		t.Fatalf("generated icon pattern = %v, want 25 cells", createdIcon["pattern"])
+	}
+	if createdIcon["background"] != iconBackground || createdIcon["color"] == "" {
+		t.Fatalf("generated icon colors = %#v, want background %s + identicon color", createdIcon, iconBackground)
+	}
 
 	list, err := server.handleClientsList(ctx, testRequest(routeClientsListID, map[string]any{}))
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	assertMatchesSchema(t, "clients.response.json", list)
+	listValues := responseValues(t, list)
+	listRows, _ := listValues["clients"].([]any)
+	if len(listRows) != 1 {
+		t.Fatalf("expected 1 client row, got %#v", listValues["clients"])
+	}
+	if row, _ := listRows[0].(map[string]any); row != nil {
+		if row["icon"] == nil || row["logoUrl"] == nil {
+			t.Fatalf("clients list rows must expose logoUrl and icon, got %#v", row)
+		}
+	}
 
 	update, err := server.handleClientUpdate(ctx, testRequest(routeClientsUpdateID, map[string]any{
 		"clientId": clientID, "name": "Local App v2",
+		"logoUrl":      "https://cdn.example.com/logo.png",
 		"redirectUris": []any{"https://local.example.com/callback", "https://local.example.com/alt"},
 	}))
 	if err != nil {
@@ -291,6 +362,15 @@ func TestClientManagementMatchesSchema(t *testing.T) {
 	assertMatchesSchema(t, "client-write.response.json", update)
 	if secret, _ := responseValues(t, update)["clientSecret"].(string); secret != "" {
 		t.Fatal("update must not re-return the client secret")
+	}
+	// 设置了 logo：描述符切换为 url 来源，并回传 logoUrl。
+	updatedClient, _ := responseValues(t, update)["client"].(map[string]any)
+	updatedIcon, _ := updatedClient["icon"].(map[string]any)
+	if updatedClient["logoUrl"] != "https://cdn.example.com/logo.png" {
+		t.Fatalf("updated logoUrl = %#v", updatedClient["logoUrl"])
+	}
+	if updatedIcon == nil || updatedIcon["kind"] != iconKindURL || updatedIcon["url"] != "https://cdn.example.com/logo.png" {
+		t.Fatalf("updated client must carry a custom icon descriptor, got %#v", updatedClient["icon"])
 	}
 
 	rotate, err := server.handleClientRotateSecret(ctx, testRequest(routeClientsRotateID, map[string]any{
@@ -336,10 +416,124 @@ func TestInvalidRedirectURIRejectedOnRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if response.GetError() == nil {
+	if !hasError(response) {
 		t.Fatal("non-https redirect URI must be rejected")
 	}
-	if response.GetError().GetReason() != "oauth2.invalid_request" {
-		t.Fatalf("reason = %s", response.GetError().GetReason())
+	if got := errorReason(t, response); got != "oauth2.invalid_request" {
+		t.Fatalf("reason = %s", got)
+	}
+}
+
+// TestEveryRouteFailureIsTerminalResponse 守住本次修复的根因：
+// 宿主把只带 RouteResponse.Error 的响应判为传输层失败，映射成 502
+// extensions.route_unavailable。任何错误分支都必须返回真正的终端响应。
+func TestEveryRouteFailureIsTerminalResponse(t *testing.T) {
+	server := testServer(t)
+	ctx := context.Background()
+
+	cases := []struct {
+		name    string
+		routeID string
+		invoke  func() (*pluginwire.RouteResponse, error)
+	}{
+		{
+			name:    "authorize 未知 client",
+			routeID: routeAuthorizeID,
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				request := testRequest(routeAuthorizeID, map[string]any{})
+				request.Method = "GET"
+				request.QueryParameters = map[string]string{
+					"client_id": "sfo_client_missing", "redirect_uri": "https://evil.example.com/cb",
+					"response_type": "code",
+				}
+				return server.handleAuthorize(ctx, request)
+			},
+		},
+		{
+			name:    "clients 列表无权限",
+			routeID: routeClientsListID,
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				request := testRequest(routeClientsListID, map[string]any{})
+				request.Context.Actor = &protocolwire.Actor{UserId: 7}
+				return server.handleClientsList(ctx, request)
+			},
+		},
+		{
+			name:    "clients 创建无权限",
+			routeID: routeClientsCreateID,
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				request := testRequest(routeClientsCreateID, map[string]any{
+					"name": "App", "clientType": "confidential",
+					"redirectUris": []any{"https://app.example.com/cb"},
+				})
+				request.Context.Actor = &protocolwire.Actor{UserId: 7}
+				return server.handleClientCreate(ctx, request)
+			},
+		},
+		{
+			name:    "clients 更新未知应用",
+			routeID: routeClientsUpdateID,
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				request := testRequest(routeClientsUpdateID, map[string]any{
+					"clientId": "sfo_client_missing", "name": "Renamed",
+				})
+				request.Context.Actor = &protocolwire.Actor{UserId: 42, PermissionKeys: []string{permissionManageClients}}
+				return server.handleClientUpdate(ctx, request)
+			},
+		},
+		{
+			name:    "clients 删除未知应用",
+			routeID: routeClientsDeleteID,
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				request := testRequest(routeClientsDeleteID, map[string]any{"clientId": "sfo_client_missing"})
+				request.Context.Actor = &protocolwire.Actor{UserId: 42, PermissionKeys: []string{permissionManageClients}}
+				return server.handleClientDelete(ctx, request)
+			},
+		},
+		{
+			name:    "未知 route id",
+			routeID: "sforum.oauth2-provider.route.does-not-exist",
+			invoke: func() (*pluginwire.RouteResponse, error) {
+				return server.InvokeRoute(ctx, testRequest("sforum.oauth2-provider.route.does-not-exist", map[string]any{}))
+			},
+		},
+	}
+
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			response, err := item.invoke()
+			if err != nil {
+				t.Fatalf("invoke: %v", err)
+			}
+			if response == nil {
+				t.Fatal("response is nil")
+			}
+			if response.GetError() != nil {
+				t.Fatalf("route %s returned Error-only response; Host maps it to 502 extensions.route_unavailable",
+					item.routeID)
+			}
+			if response.GetStatusCode() < 100 || response.GetStatusCode() > 599 {
+				t.Fatalf("route %s must carry a terminal status, got %d", item.routeID, response.GetStatusCode())
+			}
+			if response.GetBody() == nil || response.GetBody().GetValue() == nil {
+				t.Fatalf("route %s must carry a typed body matching its responseSchema", item.routeID)
+			}
+			values := response.GetBody().GetValue().AsMap()
+			if _, ok := values["error"].(string); !ok {
+				t.Fatalf("route %s error body must expose an error code, got %#v", item.routeID, values)
+			}
+			// Content-Type 必须是单个 application/json，否则宿主 schema 校验直接失败。
+			types := map[string]int{}
+			for _, header := range response.GetHeaders() {
+				if strings.EqualFold(header.GetName(), "Content-Type") {
+					for _, value := range header.GetValues() {
+						types[value]++
+					}
+				}
+			}
+			if len(types) != 1 {
+				t.Fatalf("route %s must send exactly one Content-Type, got %#v", item.routeID, types)
+			}
+		})
 	}
 }

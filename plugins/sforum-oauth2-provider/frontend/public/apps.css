@@ -1,0 +1,1834 @@
+/* 前台自助应用面板：只写宿主没有的几块。
+   三栏 chrome、左栏、按钮、空态、骨架一律用宿主 CSS 与组件类
+   （sforum-settings.css / sforum-components.css 全局已加载），因此 SSR 兜底第一帧就有样式，
+   不会出现「裸样式 → 上样式」的闪屏。
+
+   中栏视觉（2026-10 · C1 琉璃卡片）：对齐 tmp/demos/tiles-c1 ——
+   页头晨光 + iOS 分段控件 + ⌘K 命令栏 + 接入信息毛玻璃 popover +
+   两列大圆角软卡（渐变 squircle 头像 / 描边徽章 / 内凹 client_id 井道 / 单行 facts /
+   贴边卡底操作行 + 悬停显形 ⋯ 菜单）+ 虚线「新建应用」占位卡。
+   配色零新增：全部宿主 token（--sf-public-* / --sf-accent* / color-mix），
+   阴影只用中性 slate 半透明值，深色模式以 .dark 覆写。
+
+   注意：模板里的属性会被宿主模板净化器过滤（hidden / data-* / aria-controls / tabindex），
+   所以初始隐藏状态用 .sfp-hidden 类表达，这里的 display:none!important 是唯一真源。 */
+
+.sfp-hidden {
+  display: none !important;
+}
+
+/* 质感基元：阴影/动效 token（纯数值，非颜色），宿主 token 解析值不变 */
+.sforum-settings:has(.sfp-head) {
+  --sfp-s1: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --sfp-s2: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px -4px rgba(15, 23, 42, 0.08);
+  --sfp-s3: 0 2px 4px rgba(15, 23, 42, 0.04), 0 14px 32px -8px rgba(15, 23, 42, 0.14);
+  --sfp-ring: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  --sfp-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.dark .sforum-settings:has(.sfp-head) {
+  --sfp-s1: 0 1px 2px rgb(0 0 0 / 0.35);
+  --sfp-s2: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px -4px rgb(0 0 0 / 0.5);
+  --sfp-s3: 0 2px 4px rgb(0 0 0 / 0.4), 0 14px 32px -8px rgb(0 0 0 / 0.6);
+  --sfp-ring: 0 0 0 3px rgba(96, 165, 250, 0.22);
+}
+
+/* ---------- 页面画布：muted 与 surface 调出「画布 vs 卡片」层次 + 页头晨光 ---------- */
+
+.sforum-settings:has(.sfp-head) {
+  background: color-mix(in srgb, var(--sf-public-surface-muted) 55%, var(--sf-public-surface));
+}
+
+.sfp-head {
+  position: relative;
+}
+
+.sfp-head::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -70px;
+  height: 200px;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(52% 90% at 18% 0%, color-mix(in srgb, var(--sf-accent, #2563eb) 7%, transparent), transparent 70%);
+}
+
+.sfp-head > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- 页头：用主题 token，随主题与深色模式自动跟随 ----------
+   宿主 SFPublicPageHeader 的样式是 scoped 的，插件页复制它的类名拿不到样式，
+   因此这里用同一批 token 自己实现，而不是复用那串类名。
+
+   选择器刻意写成两级类：宿主 main.css 有全局 `h1:not([data-slot="title"])`
+   （font-size: clamp(32px, 5vw, 56px)），特异性 (0,1,1) 会盖掉单类规则。
+   宿主自己的页头靠 h1 上的 data-slot="title" 豁免，而插件模板的 data-* 会被
+   模板净化器剥掉，所以这里用 (0,2,0) 的写法在首帧就拿到正确字号。 */
+.sfp-head__copy {
+  min-width: 0;
+}
+
+.sfp-head__copy .sfp-head__title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--sf-public-text);
+  font-family: var(--sf-public-heading-font-family);
+  font-size: var(--sf-public-page-title-size);
+  font-weight: var(--sf-public-page-title-weight);
+  line-height: var(--sf-public-page-title-line-height);
+  letter-spacing: -0.022em;
+}
+
+.sfp-head__copy .sfp-head__subtitle {
+  max-width: 70ch;
+  margin: 6px 0 0;
+  color: var(--sf-public-text-muted);
+  font-size: var(--sf-public-page-subtitle-size);
+  line-height: var(--sf-public-page-subtitle-line-height);
+}
+
+@media (max-width: 700px) {
+  .sfp-head__copy .sfp-head__title {
+    font-size: var(--sf-public-page-title-mobile-size);
+  }
+}
+
+/* ---------- 布局：三栏收成两栏 ----------
+   宿主默认列式是「侧栏 / 主栏 / 右栏」，模板已不再输出右栏节点；
+   用 :has(.sfp-head) 限定在本插件页，避免影响其他账号设置页。
+   ≤1100px 宿主本来就收成两栏，≤980px 宿主转单栏并隐藏侧栏，均无需重复处理。 */
+
+.sforum-settings:has(.sfp-head) .sforum-settings__layout {
+  grid-template-columns: var(--sf-public-sidebar-width) minmax(0, 1fr);
+}
+
+/* ---------- 工具行 + iOS 分段控件 + ⌘K 命令栏 + 接入信息 popover ----------
+   宿主对 `.sforum-settings__section-nav a` 的悬停样式是 (0,2,1)，这里一律用
+   `.sfp-tabs .sfp-tab`（0,3,0 起步）压过它，激活态不被悬停态覆盖。 */
+
+.sfp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 0;
+}
+
+.sforum-settings__section-nav.sfp-tabs {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--sf-public-border) 65%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--sf-public-surface-muted) 80%, transparent);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sfp-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sfp-tabs .sfp-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sf-public-text-secondary);
+  font-size: 13px;
+  font-weight: 550;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.18s var(--sfp-ease), color 0.18s var(--sfp-ease), box-shadow 0.18s var(--sfp-ease);
+}
+
+.sfp-tabs .sfp-tab:hover {
+  background: transparent;
+  color: var(--sf-public-text);
+}
+
+.sfp-tabs .sfp-tab.is-active,
+.sfp-tabs .sfp-tab.is-active:hover {
+  background: var(--sf-public-surface);
+  border: 0;
+  color: var(--sf-public-text);
+  font-weight: 650;
+  box-shadow: var(--sfp-s2), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.sfp-tabs .sfp-tab.is-active::after {
+  display: none;
+}
+
+.dark .sfp-tabs .sfp-tab.is-active,
+.dark .sfp-tabs .sfp-tab.is-active:hover {
+  box-shadow: var(--sfp-s2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.sfp-tab__label {
+  white-space: nowrap;
+}
+
+.sfp-tab__count {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--sf-public-text) 7%, transparent);
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sfp-tab.is-active .sfp-tab__count {
+  background: var(--sf-accent-soft, color-mix(in srgb, var(--sf-accent, #2563eb) 10%, transparent));
+  color: var(--sf-accent, #2563eb);
+}
+
+.dark .sfp-tab.is-active .sfp-tab__count {
+  background: color-mix(in srgb, var(--sf-accent, #2563eb) 22%, transparent);
+  color: color-mix(in srgb, var(--sf-accent, #60a5fa) 70%, var(--sf-public-text));
+}
+
+/* 命令栏式搜索 */
+.sfp-cmdbar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  min-width: 0;
+  padding: 0 14px;
+  background: var(--sf-public-surface);
+  border: 1px solid var(--sf-public-border);
+  border-radius: 13px;
+  box-shadow: var(--sfp-s2);
+  color: var(--sf-public-text-faint, var(--sf-public-text-muted));
+  transition: border-color 0.15s var(--sfp-ease), box-shadow 0.15s var(--sfp-ease);
+}
+
+.sfp-cmdbar:focus-within {
+  border-color: color-mix(in srgb, var(--sf-accent, #2563eb) 45%, var(--sf-public-border));
+  box-shadow: var(--sfp-s2), var(--sfp-ring);
+}
+
+.sfp-cmdbar__icon {
+  display: inline-grid;
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.sfp-cmdbar__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sfp-cmdbar__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--sf-public-text);
+}
+
+.sfp-cmdbar__input::placeholder {
+  color: var(--sf-public-text-faint, var(--sf-public-text-muted));
+}
+
+.sfp-cmdbar__kbd,
+.sfp-foot-hint__kbd {
+  flex: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sf-public-text-muted);
+  padding: 2.5px 6px;
+  border-radius: 6px;
+  background: var(--sf-public-surface-muted);
+  border: 1px solid var(--sf-public-border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+}
+
+/* 接入信息：链接钮 + 毛玻璃 popover */
+.sfp-apiinfo {
+  position: relative;
+  flex: none;
+}
+
+.sfp-api-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sf-public-text-secondary);
+  font-size: 12.5px;
+  font-weight: 550;
+  transition: background 0.15s var(--sfp-ease), border-color 0.15s var(--sfp-ease), box-shadow 0.15s var(--sfp-ease);
+}
+
+.sfp-api-toggle:hover {
+  background: var(--sf-public-surface);
+  border-color: var(--sf-public-border);
+  box-shadow: var(--sfp-s1);
+  color: var(--sf-public-text);
+}
+
+.sfp-api-toggle .sfp-icon-slot {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+}
+
+.sfp-api-toggle .sfp-icon-slot svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sfp-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 55;
+  width: min(330px, calc(100vw - 48px));
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--sf-public-surface) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid var(--sf-public-border);
+  border-radius: 12px;
+  box-shadow: var(--sfp-s3);
+  font-size: 12.5px;
+  color: var(--sf-public-text-secondary);
+}
+
+.sfp-pop__title {
+  margin: 0 0 8px;
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.sfp-pop__eps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.sfp-pop__eps div {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.sfp-pop__eps dt {
+  color: var(--sf-public-text-muted);
+}
+
+.sfp-pop__eps dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--sf-public-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfp-pop__note {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--sf-public-border);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--sf-public-text-muted);
+}
+
+/* 列表脚注 */
+.sfp-foot-hint {
+  margin: 14px 2px 0;
+  color: var(--sf-public-text-faint, var(--sf-public-text-muted));
+  font-size: 11.5px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.sfp-foot-hint__kbd {
+  font-size: 10px;
+  padding: 1.5px 5px;
+  margin-right: 2px;
+}
+
+/* ---------- 列表：Gallery 画廊卡（封面 + 跨界图标 + 权限 chips + 贴底操作） ---------- */
+
+.sfp-panel {
+  min-width: 0;
+}
+
+.sfp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.sfp-grid > .sf-empty-state {
+  grid-column: 1 / -1;
+  margin: 14px 0;
+}
+
+.sfp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 340px;
+  padding: 0;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 16px;
+  background: var(--sf-public-surface);
+  box-shadow: var(--sfp-s2);
+  transition: transform 0.18s var(--sfp-ease), box-shadow 0.18s var(--sfp-ease), border-color 0.18s var(--sfp-ease);
+}
+
+.sfp-card:hover {
+  z-index: 4;
+  transform: translateY(-3px);
+  border-color: var(--sf-public-border-strong, var(--sf-public-border));
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 16px 34px -18px rgba(15, 23, 42, 0.24);
+}
+
+.sfp-card:focus-within {
+  z-index: 5;
+}
+
+.dark .sfp-card {
+  box-shadow: var(--sfp-s1);
+}
+
+.dark .sfp-card:hover {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 18px 36px -16px rgb(0 0 0 / 0.62);
+}
+
+/* 封面：类型标签在左上、活跃状态在右下，identicon 水印压在角落 */
+.sfp-card__cover {
+  position: relative;
+  flex: 0 0 auto;
+  height: 118px;
+  overflow: hidden;
+  border-radius: 15px 15px 0 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--sf-accent, #2563eb) 14%, var(--sf-public-border));
+  background: color-mix(in srgb, var(--sf-accent, #2563eb) 8%, var(--sf-public-surface));
+}
+
+.dark .sfp-card__cover {
+  background: color-mix(in srgb, var(--sf-accent, #2563eb) 16%, var(--sf-public-surface));
+  border-bottom-color: color-mix(in srgb, var(--sf-accent, #2563eb) 24%, var(--sf-public-border));
+}
+
+.sfp-card__watermark {
+  position: absolute;
+  right: -20px;
+  top: -26px;
+  width: 170px;
+  height: 170px;
+  opacity: 0.14;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.dark .sfp-card__watermark {
+  opacity: 0.22;
+}
+
+.sfp-card__watermark path {
+  fill: var(--sf-accent, #2563eb);
+}
+
+.dark .sfp-card__watermark path {
+  fill: var(--sf-accent-dark, var(--sf-accent, #60a5fa));
+}
+
+.sfp-card__watermark .sfp-avatar__ident {
+  position: static;
+  width: 100%;
+  height: 100%;
+}
+
+.sfp-card__tag {
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 5px;
+  background: var(--sf-public-surface);
+  color: var(--sf-public-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sfp-card__tag.is-public {
+  border-color: var(--sf-accent-soft-border, color-mix(in srgb, var(--sf-accent, #2563eb) 24%, transparent));
+  background: var(--sf-accent-soft, color-mix(in srgb, var(--sf-accent, #2563eb) 8%, transparent));
+  color: var(--sf-accent, #2563eb);
+}
+
+.dark .sfp-card__tag.is-public {
+  color: var(--sf-accent-dark, var(--sf-accent, #60a5fa));
+}
+
+.sfp-card__status {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  z-index: 1;
+  max-width: 62%;
+  overflow: hidden;
+  color: var(--sf-public-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sfp-card__status.is-live {
+  color: var(--sf-accent, #2563eb);
+}
+
+.dark .sfp-card__status.is-live {
+  color: var(--sf-accent-dark, var(--sf-accent, #60a5fa));
+}
+
+.sfp-card__status.is-live::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+/* 图标跨界：上半压在封面，下半落在正文，靠 surface 描边把两层分开 */
+.sfp-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 18px;
+}
+
+.sfp-card__icon {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  width: 60px;
+  height: 60px;
+  margin-top: -30px;
+}
+
+.sfp-card__icon .sfp-avatar,
+.dark .sfp-card__icon .sfp-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  box-shadow:
+    0 0 0 4px var(--sf-public-surface),
+    0 0 0 5px var(--sf-public-border),
+    0 10px 20px -12px rgba(15, 23, 42, 0.4);
+}
+
+.dark .sfp-card__icon .sfp-avatar {
+  box-shadow:
+    0 0 0 4px var(--sf-public-surface),
+    0 0 0 5px var(--sf-public-border),
+    0 10px 20px -12px rgb(0 0 0 / 0.7);
+}
+
+.sfp-card__title {
+  margin: 10px 0 0;
+  color: var(--sf-public-text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sfp-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  min-height: 20px;
+}
+
+.sfp-card__badges .sf-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.sfp-card__badges .sf-badge.sfp-badge--secret {
+  background: var(--sf-public-surface-muted);
+  border-color: var(--sf-public-border);
+  color: var(--sf-public-text-muted);
+}
+
+.sfp-card__desc {
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--sf-public-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 42px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sfp-card__desc.is-empty {
+  color: var(--sf-public-text-faint, var(--sf-public-text-muted));
+}
+
+/* client_id 井道：整块可点复制，复制钮悬停显形 */
+.sfp-card__id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  min-width: 0;
+}
+
+.sfp-card__idlabel {
+  margin: 12px 0 0;
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sfp-card__id .sfp-tag {
+  display: none;
+}
+
+.sfp-card__idbox {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 31px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 7px;
+  background: var(--sf-public-surface-muted);
+  transition: border-color 0.15s var(--sfp-ease);
+}
+
+.sfp-card__idbox:hover {
+  border-color: var(--sf-public-border-strong, var(--sf-public-border));
+}
+
+.sfp-card__idbox .sfp-mono {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sf-public-text-secondary);
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sfp-card__idbox .sfp-mono--copy {
+  cursor: pointer;
+}
+
+.sfp-card__idbox .sf-button.sfp-copy {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s var(--sfp-ease), background 0.15s var(--sfp-ease), color 0.15s var(--sfp-ease);
+}
+
+.sfp-card:hover .sfp-card__idbox .sf-button.sfp-copy,
+.sfp-card__idbox .sf-button.sfp-copy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .sfp-card__idbox .sf-button.sfp-copy {
+    opacity: 1;
+  }
+}
+
+/* 权限 chips：最多 4 个 + N，下方留 14px 呼吸位 */
+.sfp-card__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 22px;
+  margin: 11px 0 14px;
+}
+
+.sfp-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 4px;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sfp-scope-chip--more {
+  color: var(--sf-public-text-muted);
+}
+
+/* 底栏贴底：回调 / 最近使用 + 编辑 + ⋯ */
+.sfp-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 11px 12px 11px 18px;
+  border-top: 1px solid var(--sf-public-border);
+  border-radius: 0 0 15px 15px;
+  background: color-mix(in srgb, var(--sf-public-surface-muted) 55%, var(--sf-public-surface));
+}
+
+.sfp-card__used {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sf-public-text-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sfp-card__used b {
+  color: var(--sf-public-text-secondary);
+  font-weight: 550;
+}
+
+.sfp-card__used .sfp-live {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--sf-success, #15803d);
+  vertical-align: 1px;
+}
+
+.sfp-card__foot .sf-button {
+  height: 27px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sf-public-text-secondary);
+  font-size: 12.5px;
+  font-weight: 550;
+  box-shadow: none;
+  transition: background 0.15s var(--sfp-ease), border-color 0.15s var(--sfp-ease), box-shadow 0.15s var(--sfp-ease), color 0.15s var(--sfp-ease);
+}
+
+.sfp-card__foot .sf-button:hover:not(:disabled) {
+  background: var(--sf-public-surface);
+  border-color: var(--sf-public-border);
+  box-shadow: var(--sfp-s1);
+  color: var(--sf-public-text);
+}
+
+.sfp-card__foot .sf-button--danger-ghost {
+  color: var(--sf-danger, #b91c1c);
+}
+
+.sfp-card__foot .sf-button--danger-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sf-danger, #b91c1c) 6%, var(--sf-public-surface));
+  border-color: color-mix(in srgb, var(--sf-danger, #b91c1c) 25%, transparent);
+  color: var(--sf-danger, #b91c1c);
+}
+
+.dark .sfp-card__foot .sf-button--danger-ghost {
+  color: #f87171;
+}
+
+.dark .sfp-card__foot .sf-button--danger-ghost:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #fca5a5;
+}
+
+/* ⋯ 菜单：向上弹出，避免被下一行卡片盖住。
+   按钮常显——它是「重置密钥 / 删除」的唯一入口，藏到悬停后看起来就像不存在；
+   弱色由 .sfp-card__more-btn 负责，悬停再提亮。 */
+.sfp-card__more {
+  position: relative;
+  flex: none;
+}
+
+.sfp-card__more-btn {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  color: var(--sf-public-text-faint, var(--sf-public-text-muted));
+  transition: background 0.15s var(--sfp-ease), color 0.15s var(--sfp-ease);
+}
+
+.sfp-card__more-btn:hover {
+  background: color-mix(in srgb, var(--sf-public-text) 6%, transparent);
+  color: var(--sf-public-text);
+}
+
+.sfp-card__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 56;
+  min-width: 148px;
+  padding: 5px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sf-public-surface) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: var(--sfp-s3);
+}
+
+.sfp-card__menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 7px;
+  color: var(--sf-public-text-secondary);
+  font-size: 12.5px;
+  text-align: left;
+  transition: background 0.12s var(--sfp-ease), color 0.12s var(--sfp-ease);
+}
+
+.sfp-card__menu button:hover {
+  background: var(--sf-accent-soft, color-mix(in srgb, var(--sf-accent, #2563eb) 8%, transparent));
+  color: var(--sf-accent, #2563eb);
+}
+
+.sfp-card__menu button.sfp-menu--danger {
+  color: var(--sf-danger, #b91c1c);
+}
+
+.sfp-card__menu button.sfp-menu--danger:hover {
+  background: color-mix(in srgb, var(--sf-danger, #b91c1c) 7%, transparent);
+  color: var(--sf-danger, #b91c1c);
+}
+
+.dark .sfp-card__menu button.sfp-menu--danger {
+  color: #f87171;
+}
+
+.dark .sfp-card__menu button.sfp-menu--danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.sfp-card__menu hr {
+  margin: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--sf-public-border);
+}
+
+/* 旧结构兼容类保留隐藏：模态与确认流仍复用 .sf-button--danger-ghost 全局定义 */
+.sf-button--danger-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--sf-danger, #b91c1c);
+}
+
+.sf-button--danger-ghost:hover:not(:disabled) {
+  background: var(--sf-danger-soft, rgba(185, 28, 28, 0.08));
+  border-color: transparent;
+  color: var(--sf-danger, #b91c1c);
+}
+
+/* 类型头像（squircle）：浅色渐变底 + 内高光，机密淡蓝描色、公开中性；
+   生成 identicon 叠在底上，custom logo 再盖 img（加载失败露出下层，永不空白）。
+   描述符由 backend/icon.go 下发；类型差异交给「公开 / 机密」标签，不靠 hue 区分。 */
+.sfp-avatar,
+.dark .sfp-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sf-public-surface) 70%, var(--sf-public-surface-muted)), var(--sf-public-surface-muted));
+  border: 1px solid color-mix(in srgb, var(--sf-public-border) 85%, var(--sf-public-text) 4%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 750;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.sfp-avatar--conf,
+.dark .sfp-avatar--conf {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sf-accent-soft, #eff6ff) 70%, var(--sf-public-surface)), color-mix(in srgb, var(--sf-accent, #2563eb) 9%, var(--sf-public-surface-muted)));
+  border-color: color-mix(in srgb, var(--sf-accent, #2563eb) 16%, var(--sf-public-border));
+}
+
+.dark .sfp-avatar {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+.dark .sfp-avatar--conf {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sf-accent, #2563eb) 22%, var(--sf-public-surface-muted)), color-mix(in srgb, var(--sf-accent, #2563eb) 14%, var(--sf-public-surface-muted)));
+  border-color: color-mix(in srgb, var(--sf-accent, #60a5fa) 30%, var(--sf-public-border));
+}
+
+/* icon 分层（统一规范）：生成 tile 铺底，custom logo <img> 盖在上面；
+   图片加载失败时 apps.mjs 移除 img，露出生成图标，永不空白。
+   生成形态 = 方型纯色底 + 5×5 identicon 像素块（SFAvatar 色板，透明度 0.22）
+   + 居中的 SFAvatar 首字母；描述符由 backend/icon.go 下发。 */
+.sfp-avatar__tile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.sfp-avatar__ident {
+  position: absolute;
+  inset: 10%;
+  width: 80%;
+  height: 80%;
+  pointer-events: none;
+}
+
+.sfp-avatar__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* 透明 logo 不透出渐变底：白实底 + 发丝描边（Slack 式应用图标处理） */
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+/* 表单里的 logo 实时预览：与卡片头像同语言，行内排在输入框左侧 */
+.sfp-avatar--preview,
+.dark .sfp-avatar--preview {
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
+}
+
+.sfp-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sfp-logo-row .sfp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 图标输入：上传为主、地址为次。
+   .sfp-logo-actions 与预览头像同一行；地址输入收在折叠区里，
+   只有用户主动展开（或旧宿主降级）时才出现。 */
+.sfp-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* label 伪按钮：原生 file input 太丑，但保留真实控件（键盘可达、可拖放）。 */
+.sfp-file-pick {
+  cursor: pointer;
+  margin: 0;
+}
+
+.sfp-icon-status {
+  margin: 0;
+  flex-basis: 100%;
+  min-height: 1.25em;
+}
+
+.sfp-icon-status--error {
+  color: var(--sf-danger, #dc2626);
+}
+
+.sfp-logo-url {
+  margin-top: 10px;
+  border: 1px solid var(--sf-border, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.sfp-logo-url__summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sf-public-text-muted, #64748b);
+  user-select: none;
+}
+
+.sfp-logo-url[open] .sfp-logo-url__summary {
+  margin-bottom: 8px;
+}
+
+.sfp-logo-url .sfp-input {
+  width: 100%;
+}
+
+/* 公开/机密不再靠 hue-rotate 区分：生成图标的颜色必须留在 SFAvatar 8 色板内，
+   类型差异交给卡片上的「公开 / 机密」标签。 */
+
+/* 虚线「新建应用」占位卡：与琉璃卡同圆角，悬停亮起淡蓝底 */
+.sfp-add-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 340px;
+  padding: 20px;
+  border: 1px dashed color-mix(in srgb, var(--sf-public-border-strong, var(--sf-public-border)) 80%, var(--sf-public-text) 4%);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--sf-public-surface) 45%, transparent);
+  color: var(--sf-public-text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s var(--sfp-ease), background 0.18s var(--sfp-ease), color 0.18s var(--sfp-ease), box-shadow 0.18s var(--sfp-ease);
+}
+
+.sfp-add-tile:hover {
+  border-color: color-mix(in srgb, var(--sf-accent, #2563eb) 40%, var(--sf-public-border));
+  background: color-mix(in srgb, var(--sf-accent-soft, #eff6ff) 60%, transparent);
+  color: var(--sf-accent, #2563eb);
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--sf-accent, #2563eb) 25%, transparent);
+}
+
+.dark .sfp-add-tile:hover {
+  color: color-mix(in srgb, var(--sf-accent, #60a5fa) 80%, var(--sf-public-text));
+}
+
+.sfp-add-tile__plus {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 50%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sf-public-surface) 70%, var(--sf-public-surface-muted)), var(--sf-public-surface-muted));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(15, 23, 42, 0.05);
+  color: var(--sf-public-text-secondary);
+}
+
+.sfp-add-tile:hover .sfp-add-tile__plus {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sf-accent-soft, #eff6ff) 80%, var(--sf-public-surface)), color-mix(in srgb, var(--sf-accent, #2563eb) 10%, var(--sf-public-surface-muted)));
+  border-color: color-mix(in srgb, var(--sf-accent, #2563eb) 20%, var(--sf-public-border));
+  color: inherit;
+}
+
+/* 列表下的汇总行（共 N 个应用 · 存储 database） */
+.sfp-grid-note {
+  margin: 14px 4px 0;
+  color: var(--sf-public-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* 凭据弹窗里的「可公开 / 保密」小标签（卡片上的同名类已隐藏，弹窗仍用） */
+.sfp-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sfp-tag--public {
+  background: transparent;
+  color: var(--sf-success, #047857);
+  font-weight: 600;
+}
+
+.sfp-tag--private {
+  background: transparent;
+  color: var(--sf-warning, #b45309);
+  font-weight: 600;
+}
+
+/* client_id 芯片：等宽，超长可断行（弹窗/授权卡内的独立形态） */
+.sfp-mono {
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 6px;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* 完整 client_id 芯片整块可点击复制：键盘可聚焦，hover/focus 给出可点暗示 */
+.sfp-mono--copy {
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.sfp-mono--copy:hover,
+.sfp-mono--copy:focus-visible {
+  border-color: var(--sf-public-border-strong);
+  color: var(--sf-public-text);
+}
+
+/* 复制成功瞬间：图标钮短暂变 ✓ */
+.sf-button.sfp-copy {
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sf-public-text-muted);
+  box-shadow: none;
+}
+
+.sf-button.sfp-copy:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text);
+}
+
+.sfp-copy--done .sf-button__icon {
+  color: var(--sf-success);
+}
+
+/* ---------- 加载骨架：与 Gallery 卡同形（封面 118 + 正文，圆角 16） ---------- */
+
+.sfp-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 340px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 16px;
+  background: var(--sf-public-surface);
+  box-shadow: var(--sfp-s1);
+}
+
+.sfp-skel-card__cover {
+  flex: 0 0 auto;
+  height: 118px;
+  border-bottom: 1px solid var(--sf-public-border);
+  background: var(--sf-public-surface-muted);
+}
+
+.sfp-skel-card__body {
+  padding: 18px;
+}
+
+.sfp-skeleton-line--short {
+  width: 30%;
+}
+
+.sfp-skeleton-line--mid {
+  width: 62%;
+}
+
+.sfp-status {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 10px;
+  background: var(--sf-public-surface);
+  color: var(--sf-public-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.05);
+  overflow-wrap: anywhere;
+}
+
+.sfp-status--error {
+  border-color: var(--sf-danger, #b91c1c);
+  background: var(--sf-danger-soft, rgba(185, 28, 28, 0.08));
+  color: var(--sf-danger, #b91c1c);
+}
+
+.sfp-notice {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--sf-public-notice-border, #fde68a);
+  border-radius: 10px;
+  background: var(--sf-public-notice-bg, #fff9db);
+  color: var(--sf-public-notice-text, #9a6700);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sfp-notice__title {
+  margin: 0;
+  font-weight: 650;
+}
+
+.sfp-notice__body {
+  margin: 2px 0 0;
+}
+
+.sforum-settings__main > .sfp-notice,
+.sforum-settings__main > .sfp-status {
+  margin-bottom: 0;
+}
+
+.sfp-loading__note {
+  margin: 16px 0 0;
+  color: var(--sf-public-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sfp-loading__note code {
+  padding: 0 4px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 6px;
+  background: var(--sf-public-surface-muted);
+  font-size: 11px;
+}
+
+/* ---------- 模态：对齐 demo 01-console 的 sheet（560）/confirm（400）双规格，
+   头部无边框纯排版、底部分隔条用 muted 底色，遮罩带轻模糊。 ---------- */
+
+.sfp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.sfp-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 9, 11, 0.38);
+  backdrop-filter: blur(2px);
+}
+
+.sfp-modal__dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(86vh, 720px);
+  border: 1px solid var(--sf-public-border);
+  border-radius: 16px;
+  background: var(--sf-public-surface);
+  box-shadow: 0 30px 80px -34px rgba(15, 23, 42, 0.5);
+  overflow: hidden;
+}
+
+.sfp-modal--narrow .sfp-modal__dialog {
+  width: min(400px, 100%);
+}
+
+.sfp-modal__head {
+  padding: 18px 22px 0;
+}
+
+.sfp-modal__title {
+  margin: 0;
+  color: var(--sf-public-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.sfp-modal__sub {
+  margin: 4px 0 0;
+  color: var(--sf-public-text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.sfp-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 16px 22px 20px;
+  overflow-y: auto;
+}
+
+.sfp-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--sf-public-border);
+  background: var(--sf-public-surface-muted);
+}
+
+.sfp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sfp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sfp-field__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sf-public-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.sfp-field__tag {
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 客户端类型 radio 卡片：对齐 demo 01-console 的 typecards（隐藏原生 radio，
+   选中态 = 强调色描边 + 软底 + 圆点填充，:has() 驱动，无 JS 状态类）。 */
+.sfp-typecards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sfp-typecard {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--sf-public-border-strong, var(--sf-public-border));
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sfp-typecard input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sfp-typecard b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sf-public-text);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.sfp-typecard b::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1.5px solid var(--sf-public-border-strong, var(--sf-public-border));
+  border-radius: 50%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sfp-typecard small {
+  padding-left: 18px;
+  color: var(--sf-public-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.sfp-typecard:has(input:checked) {
+  border-color: var(--sf-accent, #4f46e5);
+  background: var(--sf-accent-soft, rgba(79, 70, 229, 0.08));
+}
+
+.sfp-typecard:has(input:checked) b::before {
+  border-color: var(--sf-accent, #4f46e5);
+  background: var(--sf-accent, #4f46e5);
+  box-shadow: inset 0 0 0 3px var(--sf-public-surface, #ffffff);
+}
+
+.sfp-typecard:has(input:focus-visible) {
+  box-shadow: 0 0 0 3px var(--sf-accent-soft, rgba(79, 70, 229, 0.15));
+}
+
+.sfp-field__hint {
+  margin: 0;
+  color: var(--sf-public-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sfp-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--sf-public-border-strong, var(--sf-public-border));
+  border-radius: 10px;
+  background: var(--sf-public-bg);
+  color: var(--sf-public-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+textarea.sfp-input {
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.sfp-input:focus {
+  outline: none;
+  border-color: var(--sf-accent);
+  box-shadow: 0 0 0 3px var(--sf-accent-soft);
+}
+
+/* 权限范围 chip 多选：选项来自站点 allowed_scopes，选中态走强调色 */
+.sfp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.sfp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--sf-public-border-strong, var(--sf-public-border));
+  border-radius: 999px;
+  background: var(--sf-public-surface);
+  color: var(--sf-public-text-secondary);
+  font-size: 12.5px;
+  font-weight: 570;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.sfp-chip:hover {
+  border-color: color-mix(in srgb, var(--sf-accent, #4f46e5) 45%, var(--sf-public-border));
+  color: var(--sf-public-text);
+}
+
+.sfp-chip.is-on {
+  border-color: var(--sf-accent, #4f46e5);
+  background: var(--sf-accent-soft, rgba(79, 70, 229, 0.1));
+  color: var(--sf-accent, #4f46e5);
+}
+
+.sfp-chip__name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 650;
+}
+
+.sfp-chip__desc {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.sfp-chip--locked,
+.sfp-chip--locked:hover {
+  cursor: default;
+  border-style: dashed;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text-muted);
+}
+
+.sfp-chip__tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-warning, #b45309) 13%, transparent);
+  color: var(--sf-warning, #b45309);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.sfp-chip__tag--accent {
+  background: color-mix(in srgb, var(--sf-accent, #4f46e5) 13%, transparent);
+  color: var(--sf-accent, #4f46e5);
+}
+
+.sfp-scope-presets {
+  display: flex;
+  flex-basis: 100%;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.sfp-chip-preset {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-public-surface-muted);
+  color: var(--sf-public-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sfp-chip-preset:hover {
+  background: var(--sf-accent-soft, var(--sf-public-surface-muted));
+  color: var(--sf-accent, var(--sf-public-text));
+}
+
+.sfp-scopes-note:empty {
+  display: none;
+}
+
+.sfp-callout {
+  padding: 12px;
+  border: 1px solid var(--sf-public-border);
+  border-radius: 12px;
+  background: var(--sf-public-surface-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sfp-callout--warning {
+  border-color: var(--sf-warning, #d97706);
+  background: var(--sf-warning-soft, rgba(217, 119, 6, 0.1));
+  color: var(--sf-warning, #d97706);
+}
+
+.sfp-callout--danger {
+  border-color: var(--sf-danger, #b91c1c);
+  background: var(--sf-danger-soft, rgba(185, 28, 28, 0.08));
+  color: var(--sf-danger, #b91c1c);
+}
+
+.sfp-callout__title {
+  margin: 0;
+  font-weight: 650;
+}
+
+.sfp-callout__body {
+  margin: 2px 0 0;
+}
+
+/* 一次性凭据列表：每行 = 名称+标签 / 值+复制 / 一句说明（说明占满整行）。 */
+.sfp-pairs {
+  display: block;
+  margin: 14px 0 0;
+}
+
+.sfp-pair {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.sfp-pair + .sfp-pair {
+  border-top: 1px solid var(--sf-public-border);
+}
+
+.sfp-pair dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sf-public-text);
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.sfp-pair dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+/* 长 client_secret 在值框内换行，复制按钮始终留在同一行，不被挤到下一行。 */
+.sfp-pair dd .sfp-mono {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sfp-pair dd .sf-button {
+  flex: none;
+}
+
+.sfp-pair__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--sf-public-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sfp-pair__note--summary {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sf-public-border);
+}
+
+/* ---------- 窄屏：模态转底部抽屉，工具行换行、命令栏占整行 ---------- */
+
+@media (max-width: 900px) {
+  .sfp-modal {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .sfp-modal__dialog,
+  .sfp-modal--narrow .sfp-modal__dialog {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .sfp-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .sfp-cmdbar {
+    order: 3;
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- 窄屏：画廊卡收紧封面与内边距 ---------- */
+
+@media (max-width: 720px) {
+  .sfp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sfp-card__cover {
+    height: 104px;
+  }
+
+  .sfp-card__body {
+    padding: 0 14px;
+  }
+
+  .sfp-card__icon,
+  .sfp-card__icon .sfp-avatar,
+  .dark .sfp-card__icon .sfp-avatar {
+    width: 54px;
+    height: 54px;
+  }
+
+  .sfp-card__icon {
+    margin-top: -27px;
+  }
+
+  .sfp-card__foot {
+    padding: 10px 10px 10px 14px;
+    flex-wrap: wrap;
+  }
+
+  .sfp-skel-card__cover {
+    height: 104px;
+  }
+
+  .sfp-skel-card__body {
+    padding: 16px 14px;
+  }
+}
+
+
+@media (max-width: 560px) {
+  .sfp-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .sfp-pair dt {
+    white-space: normal;
+  }
+}
+
+/* dev-live-touch */
+
+/* dev-live-round2 */
+
+/* dev-live-round3 */
+
+/* dev-live-round4 */
+
+/* dev-live-verify-0540 */
+
+/* dev-live-unified */
+
+/* v2 */
+
+/* v3 */
+
+/* v4-final */
+
+/* v5 */
+
+/* v6 */
+
+/* v7-final */
+
+/* v8-clean */
+
+/* v9-final-check */
+
+/* v10-probe */
+
+/* v11 */
+
+/* v12 */
+
+/* v13 */
+
+/* v14-retry */
+
+/* v15 */
+
+/* v16 */
+
+/* v17 */
+
+/* v18-diag */
+
+/* v19-rule */
+
+/* v20-platform */
+
+/* v21-ui */
+
+/* v22-dump */
+
+/* v23-dump2 */
+
+/* v24 */
+
+/* v25-full */
+
+/* v26-final */
+
+/* v27-unified */
+
+/* v28-authorside */
+
+/* v29-final */
+
+/* e2e-after-cleanup */
+
+/* css-only-e2e */
+
+/* clean-e2e-090728 */

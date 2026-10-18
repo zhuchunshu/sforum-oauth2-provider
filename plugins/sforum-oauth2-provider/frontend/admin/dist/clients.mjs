@@ -9,6 +9,11 @@ export const apiVersion = 1
 //   不使用 emoji 或自绘图标。
 
 const API = '/api/oauth'
+// 图标上传直连 Core 的附件接口：字节交给宿主的附件体系，插件只拿 publicId 去 claim。
+const CORE_API = '/api/v1'
+// 前端前置校验只做体验（权威判定在 Host）：PNG / JPEG / WebP，≤512 KiB。
+const ICON_MAX_BYTES = 512 * 1024
+const ICON_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 const MESSAGES = {
   'zh-CN': {
@@ -16,6 +21,7 @@ const MESSAGES = {
     sectionHint: (count, source) => `共 ${count} 个应用 · 存储：${source}`,
     refresh: '刷新',
     create: '新建应用',
+    docs: '接入文档',
     colApp: '应用',
     colType: '类型',
     colRedirect: '回调地址',
@@ -39,19 +45,56 @@ const MESSAGES = {
     fieldNameHint: '展示在用户授权确认页上，建议使用真实服务名。',
     fieldDescription: '应用说明',
     fieldDescriptionHint: '可选，显示在确认页标题下方。',
+    fieldIcon: '应用图标',
+    fieldIconHint: '可选，上传 PNG / JPEG / WebP（不超过 512 KiB）；留空则自动生成 GitHub 风格 identicon 图标（浅灰方底 + 镜像像素块）。',
+    iconUpload: '上传图片',
+    iconRemove: '移除图标',
+    iconUseURL: '或使用图片地址',
+    iconUploading: '正在上传…',
+    iconUploaded: '已上传，保存后生效',
+    iconUploadedSaved: '已上传',
+    iconUploadFailed: '图片上传失败，请重试',
+    iconTypeInvalid: '只支持 PNG / JPEG / WebP 图片',
+    iconTooLarge: (max) => `图片不能超过 ${max}`,
+    iconUnsupported: '当前宿主版本不支持图标上传，请升级 SForum 或改用图片地址',
+    iconRetry: '页面状态已过期，请刷新后重试',
+    iconRevisionConflict: '图片已被修改，请重新上传',
+    iconForbidden: '这张图片不属于你，或已被其他功能使用',
+    iconReferenceLimit: '本扩展的图片引用已达上限，请先移除其他应用的图标',
+    iconAttachmentMissing: '图片已不存在，请重新上传',
+    fieldLogo: '应用图标 URL',
+    fieldLogoHint: '可选，https 图片地址；留空则自动生成 GitHub 风格 identicon 图标（浅灰方底 + 镜像像素块）。',
+    logoInvalid: (value) => `图标地址不合法：${value}（需 https，或本地 http://127.0.0.1 / http://localhost，且不带 #片段）`,
     fieldType: '客户端类型',
     typeConfidentialHint: '机密客户端持有 client_secret，适合有服务端的应用。',
     typePublicHint: '公开客户端不使用密钥，必须使用 PKCE，适合纯前端应用。',
     fieldRedirect: '回调地址',
     fieldRedirectHint: '每行一个，必须是 https；本地开发可用 http://127.0.0.1 或 http://localhost。',
     fieldScopes: '权限范围',
-    fieldScopesHint: '留空使用站点默认（profile：读取用户名、昵称与账号状态）。',
+    fieldScopesHint: '点选该应用可申请的权限范围：用户授权时默认按这里申请，应用请求超出范围会被拒；不选则使用站点默认。',
+    scopePresetAll: '全选',
+    scopePresetNone: '清空',
+    scopePresetProfile: '仅基础资料',
+    scopeCustomTag: '历史',
+    scopeRequiredTag: '必选',
+    scopeAlwaysOnNote: '身份读取始终授予，无需勾选。',
+    scopeDescProfile: '读取你的基础资料：用户名、昵称、注册时间与账号状态。',
+    scopeDropWarning: (list) => `这些历史范围不在站点清单内，保存后将一并移除：${list}`,
     cancel: '取消',
     submitCreate: '创建',
     submitSave: '保存',
     submitting: '处理中…',
-    secretTitle: '请立即保存 client_secret',
-    secretHint: '密钥只显示这一次；关闭后无法再次查看，遗失时只能重置。',
+    idLabel: '客户端 ID',
+    idTagPublic: '可公开',
+    idHint: '客户端 ID 是公开标识，可以对外展示；需要保密的是客户端密钥 client_secret。',
+    secretTitle: '请立即保存客户端密钥（client_secret）',
+    secretHint: '客户端密钥只显示这一次；关闭后无法再次查看，遗失时只能重置。',
+    secretLabelId: '客户端 ID',
+    secretLabelKey: '客户端密钥',
+    secretTagPrivate: '保密',
+    secretIdNote: '公开标识：可以写进应用配置、也可以被用户看到，泄漏没有风险。',
+    secretKeyNote: '保密凭据：只放在可信服务端，不要提交到代码仓库、也不要下发到浏览器。',
+    secretPairsNote: '两者不是公私钥对：客户端 ID 相当于用户名（公开），客户端密钥相当于密码（保密），没有需要分发的公钥。',
     secretDone: '我已保存',
     rotateTitle: '重置密钥',
     rotateHint: '重置后旧密钥立即失效，正在使用它的应用需要改成新密钥。',
@@ -74,6 +117,7 @@ const MESSAGES = {
     sectionHint: (count, source) => `${count} app${count === 1 ? '' : 's'} · storage: ${source}`,
     refresh: 'Refresh',
     create: 'New application',
+    docs: 'Integration guide',
     colApp: 'Application',
     colType: 'Type',
     colRedirect: 'Redirect URIs',
@@ -97,19 +141,56 @@ const MESSAGES = {
     fieldNameHint: 'Shown on the user consent page; use the real service name.',
     fieldDescription: 'Description',
     fieldDescriptionHint: 'Optional; displayed under the consent page title.',
+    fieldIcon: 'Application icon',
+    fieldIconHint: 'Optional: upload a PNG / JPEG / WebP up to 512 KiB; leave empty to auto-generate a GitHub-style identicon (light square, mirror pixel blocks).',
+    iconUpload: 'Upload image',
+    iconRemove: 'Remove icon',
+    iconUseURL: 'Or use an image URL',
+    iconUploading: 'Uploading…',
+    iconUploaded: 'Uploaded; save to apply',
+    iconUploadedSaved: 'Uploaded',
+    iconUploadFailed: 'The image upload failed; try again',
+    iconTypeInvalid: 'Only PNG / JPEG / WebP images are supported',
+    iconTooLarge: (max) => `The image must be at most ${max}`,
+    iconUnsupported: 'This host version cannot accept uploaded icons; upgrade SForum or use an image URL',
+    iconRetry: 'The page state expired; refresh and try again',
+    iconRevisionConflict: 'The image changed; upload it again',
+    iconForbidden: 'This image is not yours or is already used by another feature',
+    iconReferenceLimit: 'This extension reached its image reference limit; remove another app icon first',
+    iconAttachmentMissing: 'The image no longer exists; upload it again',
+    fieldLogo: 'Application icon URL',
+    fieldLogoHint: 'Optional https image URL; leave empty to auto-generate a GitHub-style identicon (light square, mirror pixel blocks).',
+    logoInvalid: (value) => `Invalid icon URL: ${value} (use https, or http://127.0.0.1 / http://localhost locally, without a #fragment)`,
     fieldType: 'Client type',
     typeConfidentialHint: 'A confidential client holds a client_secret and fits server-side apps.',
     typePublicHint: 'A public client has no secret and must use PKCE; fits browser-only apps.',
     fieldRedirect: 'Redirect URIs',
     fieldRedirectHint: 'One per line, https required; http://127.0.0.1 or http://localhost is allowed for local development.',
     fieldScopes: 'Scopes',
-    fieldScopesHint: 'Leave empty to use the site default (profile: username, display name, account status).',
+    fieldScopesHint: 'Pick the scopes this application may request: consent defaults to this list and out-of-range requests are rejected. Leave empty to use the site default.',
+    scopePresetAll: 'Select all',
+    scopePresetNone: 'Clear',
+    scopePresetProfile: 'Profile only',
+    scopeCustomTag: 'Legacy',
+    scopeRequiredTag: 'Required',
+    scopeAlwaysOnNote: 'Identity is always granted; no need to select.',
+    scopeDescProfile: 'Read your basic profile: username, display name, registration date and account status.',
+    scopeDropWarning: (list) => `These legacy scopes are not in the site allowlist and will be removed on save: ${list}`,
     cancel: 'Cancel',
     submitCreate: 'Create',
     submitSave: 'Save',
     submitting: 'Working…',
-    secretTitle: 'Store the client_secret now',
-    secretHint: 'The secret is shown once; it cannot be viewed again and must be reset if lost.',
+    idLabel: 'Client ID',
+    idTagPublic: 'Shareable',
+    idHint: 'The client ID is a public identifier and is safe to show; the client_secret is the part that must stay private.',
+    secretTitle: 'Store the client secret (client_secret) now',
+    secretHint: 'The client secret is shown once; it cannot be viewed again and must be reset if lost.',
+    secretLabelId: 'Client ID',
+    secretLabelKey: 'Client secret',
+    secretTagPrivate: 'Private',
+    secretIdNote: 'Public identifier: safe in app configuration and visible to users.',
+    secretKeyNote: 'Private credential: keep it on a trusted server — never in a repository or shipped to a browser.',
+    secretPairsNote: 'This is not a public/private key pair: the client ID is like a username (public) and the client secret like a password (private); there is no public key to distribute.',
     secretDone: 'I saved it',
     rotateTitle: 'Reset client secret',
     rotateHint: 'The old secret stops working immediately; update it in the app that uses it.',
@@ -127,6 +208,15 @@ const MESSAGES = {
     nameRequired: 'Application name is required.',
     redirectInvalid: (value) => `Invalid redirect URI: ${value} (use https, or http://127.0.0.1 / http://localhost locally, without a #fragment)`
   }
+}
+
+// 保存/删除请求必须带 Idempotency-Key：Host 只在它存在时才签发 Host Command 的
+// actor 委派（claim / release），缺了它命令永远调不通。
+function newIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `sfo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function readCookie(name) {
@@ -153,6 +243,22 @@ function validRedirectURI(value) {
   let parsed
   try {
     parsed = new URL(value)
+  } catch (error) {
+    return false
+  }
+  if (parsed.hash) return false
+  if (parsed.protocol === 'https:') return true
+  return parsed.protocol === 'http:' && (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost')
+}
+
+// logo 地址校验：与 backend validLogoURL 同规则（空 = 用生成 icon）。
+function validLogoURL(value) {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  if (trimmed.length > 2048) return false
+  let parsed
+  try {
+    parsed = new URL(trimmed)
   } catch (error) {
     return false
   }
@@ -211,6 +317,7 @@ export function mount(target, bridge) {
           <p class="sfo-section__hint" data-role="hint"></p>
         </div>
         <div class="sfo-section__actions">
+          <a class="sfo-btn" href="/docs/oauth2-provider" target="_blank" rel="noopener noreferrer">${t.docs}</a>
           <button type="button" class="sfo-btn" data-action="refresh">${t.refresh}</button>
           <button type="button" class="sfo-btn sfo-btn--primary" data-action="create">${t.create}</button>
         </div>
@@ -262,6 +369,27 @@ export function mount(target, bridge) {
               <input class="sfo-input" id="sfo-description" name="description" maxlength="500" autocomplete="off">
             </div>
             <div class="sfo-field">
+              <span class="sfo-field__label">${t.fieldIcon}</span>
+              <p class="sfo-field__hint">${t.fieldIconHint}</p>
+              <div class="sfo-logo-row">
+                <span class="sfo-avatar sfo-avatar--preview" data-role="logo-preview" aria-hidden="true"></span>
+                <div class="sfo-logo-actions">
+                  <label class="sfo-btn sfo-btn--sm sfo-file-pick">
+                    <span>${t.iconUpload}</span>
+                    <input type="file" id="sfo-logo-file" accept="image/png,image/jpeg,image/webp" data-role="logo-file" hidden>
+                  </label>
+                  <button type="button" class="sfo-btn sfo-btn--sm" data-action="clear-icon" data-role="icon-clear" hidden>${t.iconRemove}</button>
+                  <p class="sfo-field__hint sfo-icon-status" data-role="icon-status" aria-live="polite"></p>
+                </div>
+              </div>
+              <details class="sfo-logo-url" data-role="logo-url">
+                <summary class="sfo-logo-url__summary">${t.iconUseURL}</summary>
+                <label class="sfo-field__label" for="sfo-logo">${t.fieldLogo}</label>
+                <input class="sfo-input" id="sfo-logo" name="logoUrl" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://example.com/logo.png">
+                <p class="sfo-field__hint">${t.fieldLogoHint}</p>
+              </details>
+            </div>
+            <div class="sfo-field">
               <label class="sfo-field__label" for="sfo-type">${t.fieldType}</label>
               <select class="sfo-input" id="sfo-type" name="clientType">
                 <option value="confidential">${t.typeConfidential}</option>
@@ -275,9 +403,10 @@ export function mount(target, bridge) {
               <textarea class="sfo-input sfo-textarea" id="sfo-redirect" name="redirectUris" rows="3" spellcheck="false"></textarea>
             </div>
             <div class="sfo-field">
-              <label class="sfo-field__label" for="sfo-scopes">${t.fieldScopes}</label>
+              <span class="sfo-field__label">${t.fieldScopes}</span>
               <p class="sfo-field__hint">${t.fieldScopesHint}</p>
-              <input class="sfo-input" id="sfo-scopes" name="scopes" autocomplete="off" placeholder="profile">
+              <div class="sfo-chips" data-role="scopes-chips" role="group" aria-label="${t.fieldScopes}"></div>
+              <p class="sfo-field__hint sfo-scopes-note" data-role="scopes-note"></p>
             </div>
             <p class="sfo-form__error" data-role="form-error" role="alert" hidden></p>
           </form>
@@ -326,10 +455,31 @@ export function mount(target, bridge) {
   const fields = {
     name: root.querySelector('#sfo-name'),
     description: root.querySelector('#sfo-description'),
+    logoUrl: root.querySelector('#sfo-logo'),
+    logoFile: root.querySelector('#sfo-logo-file'),
     clientType: root.querySelector('#sfo-type'),
-    redirectUris: root.querySelector('#sfo-redirect'),
-    scopes: root.querySelector('#sfo-scopes')
+    redirectUris: root.querySelector('#sfo-redirect')
   }
+  const logoUrlBlock = root.querySelector('[data-role="logo-url"]')
+  const iconStatus = root.querySelector('[data-role="icon-status"]')
+  const iconClear = root.querySelector('[data-role="icon-clear"]')
+  // 图标来源（与后端 attachment > url > generated 一一对应）：
+  //   keep       —— 这次没动图标：两个字段都不提交，服务端保留原图；
+  //   attachment —— 本次上传：提交 attachmentPublicId + attachmentRevision，claim；
+  //   url        —— 用图片地址：提交 logoUrl（服务端会先 release 旧附件）；
+  //   generated  —— 显式清除：两个字段都传空串，回到生成图标。
+  let iconChoice = { kind: 'keep', publicId: '', revision: '', previewURL: '' }
+  // 旧宿主（或账号没有 attachment.upload）时置真：上传控件降级，URL 区展开。
+  let iconUploadBlocked = false
+  // logo 实时预览：与前台同语言；element 会被替换，引用随之更新。
+  let logoPreview = root.querySelector('[data-role="logo-preview"]')
+  // 权限范围：chip 多选（选项 = 站点 allowed_scopes，来自 /clients 响应；不再手填）。
+  const scopesChips = root.querySelector('[data-role="scopes-chips"]')
+  const scopesNote = root.querySelector('[data-role="scopes-note"]')
+  let allowedScopes = []
+  let scopeCatalog = []
+  let pickedScopes = new Set()
+  let customScopes = []
   const views = {
     form: root.querySelector('[data-view="form"]'),
     secret: root.querySelector('[data-view="secret"]'),
@@ -342,6 +492,99 @@ export function mount(target, bridge) {
   let mode = 'create'
   let activeClient = null
   let lastTrigger = null
+
+  // 权限范围 chip 多选：与前台弹窗同语义（profile 必选锁定；历史遗留的清单外
+  // scope 以锁定 chip 呈现，保存时显式提示将被移除）。描述读插件下发的 scopeCatalog。
+  const scopeInfo = (scope) => {
+    const entry = scopeCatalog.find((item) => item && item.name === scope) || null
+    const lang = locale === 'en-US' ? 'en-US' : 'zh-CN'
+    const raw = entry && entry.description ? entry.description[lang] || entry.description['en-US'] || entry.description['zh-CN'] : ''
+    return {
+      desc: text(raw) || (scope === 'profile' ? t.scopeDescProfile : ''),
+      alwaysOn: Boolean(entry && entry.alwaysOn) || scope === 'profile'
+    }
+  }
+  const scopeNote = () => {
+    if (!scopesNote) return
+    if (mode === 'edit' && customScopes.length > 0) {
+      scopesNote.textContent = t.scopeDropWarning(customScopes.join(' '))
+      return
+    }
+    scopesNote.textContent = ''
+  }
+  const renderScopeChips = () => {
+    if (!scopesChips) return
+    scopesChips.textContent = ''
+    for (const scope of allowedScopes) {
+      const info = scopeInfo(scope)
+      const on = pickedScopes.has(scope)
+      const name = document.createElement('span')
+      name.className = 'sfo-chip__name'
+      name.textContent = scope
+      const chip = document.createElement(info.alwaysOn ? 'span' : 'button')
+      chip.className = 'sfo-chip' + (on || info.alwaysOn ? ' is-on' : '') + (info.alwaysOn ? ' sfo-chip--locked' : '')
+      if (!info.alwaysOn) {
+        chip.type = 'button'
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false')
+      }
+      chip.append(name)
+      if (info.desc) {
+        const hint = document.createElement('span')
+        hint.className = 'sfo-chip__desc'
+        hint.textContent = info.desc
+        chip.append(hint)
+      }
+      const tag = document.createElement('span')
+      if (info.alwaysOn) {
+        tag.className = 'sfo-chip__tag sfo-chip__tag--accent'
+        tag.textContent = t.scopeRequiredTag
+        chip.append(tag)
+      }
+      if (info.alwaysOn) {
+        chip.title = t.scopeAlwaysOnNote
+      } else {
+        chip.addEventListener('click', () => {
+          if (pickedScopes.has(scope)) pickedScopes.delete(scope)
+          else pickedScopes.add(scope)
+          renderScopeChips()
+        })
+      }
+      scopesChips.append(chip)
+    }
+    for (const scope of customScopes) {
+      const chip = document.createElement('span')
+      chip.className = 'sfo-chip sfo-chip--locked'
+      const name = document.createElement('span')
+      name.className = 'sfo-chip__name'
+      name.textContent = scope
+      const tag = document.createElement('span')
+      tag.className = 'sfo-chip__tag'
+      tag.textContent = t.scopeCustomTag
+      chip.append(name, tag)
+      chip.title = t.scopeDropWarning(scope)
+      scopesChips.append(chip)
+    }
+    if (allowedScopes.length > 1) {
+      const presets = document.createElement('div')
+      presets.className = 'sfo-scope-presets'
+      const preset = (label, apply) => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'sfo-chip-preset'
+        btn.textContent = label
+        btn.addEventListener('click', () => { apply(); renderScopeChips() })
+        return btn
+      }
+      const presetBtns = [preset(t.scopePresetAll, () => { for (const scope of allowedScopes) pickedScopes.add(scope) })]
+      if (allowedScopes.length > 2 && allowedScopes.includes('profile')) {
+        presetBtns.push(preset(t.scopePresetProfile, () => { pickedScopes.clear(); pickedScopes.add('profile') }))
+      }
+      presetBtns.push(preset(t.scopePresetNone, () => { pickedScopes.clear(); pickedScopes.add('profile') }))
+      presets.append(...presetBtns)
+      scopesChips.append(presets)
+    }
+    scopeNote()
+  }
 
   const setStatus = (message, kind) => {
     if (!message) {
@@ -369,6 +612,7 @@ export function mount(target, bridge) {
     const method = (options.method || 'GET').toUpperCase()
     const headers = { Accept: 'application/json' }
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+    if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
     if (method !== 'GET' && method !== 'HEAD') headers['X-Csrf-Token'] = readCookie('csrf_')
     const response = await fetch(API + path, {
       method,
@@ -381,7 +625,10 @@ export function mount(target, bridge) {
     if (!response.ok) {
       const reason = data.reason || data.error || `HTTP ${response.status}`
       const detail = payload.message || data.errorDescription || ''
-      throw new Error(detail && detail !== reason ? `${reason}: ${detail}` : reason)
+      const error = new Error(detail && detail !== reason ? `${reason}: ${detail}` : reason)
+      // 稳定错误码要能被调用方读到（图标上传降级、修订冲突都靠它分流）。
+      error.code = reason
+      throw error
     }
     return data
   }
@@ -394,8 +641,25 @@ export function mount(target, bridge) {
     return code
   }
 
-  // 表格里只展示可读的短形式；完整值靠 title 与「复制」按钮获取。
-  const shortenId = (value) => (value.length > 20 ? `${value.slice(0, 12)}…${value.slice(-4)}` : value)
+  // 表格里的 client_id 完整显示；芯片整块可点击复制（触屏上 hover title 不可用）。
+  const idChip = (value) => {
+    const code = mono(value, value)
+    code.classList.add('sfo-mono--copy')
+    code.setAttribute('role', 'button')
+    code.tabIndex = 0
+    const copy = async () => {
+      const ok = await copyToClipboard(value)
+      toast(ok ? t.copied : t.requestFailed, ok ? value : '', ok ? 'success' : 'error')
+    }
+    code.addEventListener('click', copy)
+    code.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        copy()
+      }
+    })
+    return code
+  }
 
   const copyButton = (value, label) => {
     const button = document.createElement('button')
@@ -415,24 +679,302 @@ export function mount(target, bridge) {
     return td
   }
 
+  // 统一 icon：与前台、确认页同源（backend/icon.go 下发描述符，这里只渲染）。
+  // kind=attachment/url → 生成 tile 上叠 <img>；kind=generated → 方型纯色底 +
+  // 5×5 identicon 像素块 + SFAvatar 首字母。本地镜像只服务表单预览与描述符缺失兜底，
+  // 算法与 backend/identicon.go 逐位一致（哈希原语同站点 SFAvatar）。
+  const ICON_BACKGROUND = '#f0f0f0'
+
+  const stableHash = (seed) => {
+    const source = text(seed)
+    let hash = 0
+    for (let index = 0; index < source.length; index += 1) {
+      hash = (Math.imul(hash, 31) + source.charCodeAt(index)) >>> 0
+    }
+    return hash
+  }
+
+  // 与 backend/identicon.go 的 identiconColor 逐字一致（S/L 取自 GitHub 实测区间）。
+  const identiconColor = (seed) => {
+    const base = text(seed).trim() || 'sforum'
+    return 'hsl(' + (stableHash(base) % 360) + ' 60% 63%)'
+  }
+
+  const identiconPattern = (seed) => {
+    const base = text(seed).trim() || 'sforum'
+    const primary = stableHash(base)
+    const secondary = stableHash(base + '\u001f')
+    const filled = []
+    for (let index = 0; index < 15; index += 1) {
+      const nibble = index < 8
+        ? (primary >>> (4 * index)) & 0xf
+        : (secondary >>> (4 * (index - 8))) & 0xf
+      filled.push(nibble % 2 === 0)
+    }
+    const cells = new Array(25).fill('0')
+    let painted = false
+    for (let row = 0; row < 5; row += 1) {
+      for (let column = 0; column < 3; column += 1) {
+        if (!filled[row * 3 + column]) continue
+        cells[row * 5 + column] = '1'
+        painted = true
+      }
+      cells[row * 5 + 3] = cells[row * 5 + 1]
+      cells[row * 5 + 4] = cells[row * 5 + 0]
+    }
+    if (!painted) cells[12] = '1'
+    return cells.join('')
+  }
+
+  const localDescriptor = (seed, name, logoUrl) => {
+    const trimmedUrl = text(logoUrl).trim()
+    const key = text(seed).trim() || text(name).trim() || 'sfo_client_preview'
+    const descriptor = {
+      kind: 'generated',
+      pattern: identiconPattern(key),
+      background: ICON_BACKGROUND,
+      color: identiconColor(key)
+    }
+    if (trimmedUrl) {
+      // 本地预览不区分 attachment / url：两者都只是「叠一张 <img>」。
+      descriptor.kind = 'url'
+      descriptor.url = trimmedUrl
+    }
+    return descriptor
+  }
+
+  // 5×5 像素块用内联 SVG 绘制（单节点、随 tile 缩放、无额外图片请求）。
+  const renderIdenticon = (pattern, color) => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('class', 'sfo-avatar__ident')
+    svg.setAttribute('viewBox', '0 0 5 5')
+    svg.setAttribute('aria-hidden', 'true')
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    let data = ''
+    for (let index = 0; index < 25; index += 1) {
+      if (pattern.charAt(index) !== '1') continue
+      data += 'M' + (index % 5) + ' ' + Math.floor(index / 5) + 'h1v1h-1z'
+    }
+    path.setAttribute('d', data)
+    path.setAttribute('fill', text(color) || identiconColor(pattern))
+    path.setAttribute('shape-rendering', 'crispEdges')
+    svg.append(path)
+    return svg
+  }
+
+  const renderIcon = (descriptor, seed, name, clientType) => {
+    const icon = descriptor && descriptor.kind ? descriptor : localDescriptor(seed, name, '')
+    const span = document.createElement('span')
+    span.className = 'sfo-avatar sfo-avatar--' + (clientType === 'public' ? 'pub' : 'conf')
+    span.setAttribute('aria-hidden', 'true')
+    const tile = document.createElement('span')
+    tile.className = 'sfo-avatar__tile'
+    tile.style.background = text(icon.background) || ICON_BACKGROUND
+    const pattern = text(icon.pattern) || identiconPattern(text(seed) || name)
+    tile.append(renderIdenticon(pattern, text(icon.color) || identiconColor(text(seed) || name)))
+    span.append(tile)
+    if (icon.url) {
+      const img = document.createElement('img')
+      img.className = 'sfo-avatar__img'
+      img.src = icon.url
+      img.alt = ''
+      img.loading = 'lazy'
+      img.referrerPolicy = 'no-referrer'
+      img.addEventListener('error', () => img.remove())
+      span.append(img)
+    }
+    return span
+  }
+
+  const renderLogoPreview = () => {
+    if (!logoPreview) return
+    const name = fields.name.value.trim()
+    const seed = text(activeClient && activeClient.clientId) || name || 'sfo_client_preview'
+    const next = renderIcon(localDescriptor(seed, name, iconChoice.previewURL), seed, name, fields.clientType.value)
+    next.classList.add('sfo-avatar--preview')
+    logoPreview.replaceWith(next)
+    logoPreview = next
+  }
+
+  const setIconStatus = (message, kind) => {
+    if (!iconStatus) return
+    iconStatus.textContent = text(message)
+    iconStatus.classList.toggle('sfo-icon-status--error', kind === 'error')
+  }
+
+  // 每次来源变化都重画预览、同步「移除」按钮与状态文案。
+  const applyIconState = (message, kind) => {
+    renderLogoPreview()
+    const hasIcon = Boolean(iconChoice.previewURL) || iconChoice.kind === 'attachment'
+    if (iconClear) iconClear.hidden = !hasIcon
+    setIconStatus(message === undefined ? '' : message, kind)
+  }
+
+  // 把 Host / Core 的失败翻译成可读文案。上传不支持时展开 URL 输入作为降级，
+  // 绝不静默退回 base64 内联。
+  const iconMessage = (code) => {
+    switch (code) {
+      case 'icon_upload_unsupported': return t.iconUnsupported
+      case 'idempotency_key_required': return t.iconRetry
+      case 'icon_revision_conflict': return t.iconRevisionConflict
+      case 'icon_too_large': return t.iconTooLarge('512 KiB')
+      case 'icon_forbidden': return t.iconForbidden
+      case 'icon_reference_limit': return t.iconReferenceLimit
+      case 'icon_attachment_missing': return t.iconAttachmentMissing
+      case 'icon_invalid': return t.iconTypeInvalid
+      default: return t.iconUploadFailed
+    }
+  }
+
+  const handleIconFailure = (error) => {
+    const code = text(error && error.code)
+    if (!code || code.indexOf('icon_') !== 0 && code !== 'idempotency_key_required') return false
+    iconUploadBlocked = code === 'icon_upload_unsupported'
+    if (iconUploadBlocked && logoUrlBlock) logoUrlBlock.open = true
+    setIconStatus(iconMessage(code), 'error')
+    return true
+  }
+
+  // 管理端页面始终带 csrf_ cookie；缺失时先打插件自己的握手端点补上。
+  const ensureCsrf = () => {
+    if (readCookie('csrf_')) return Promise.resolve()
+    return fetch(API + '/csrf', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .catch(() => {})
+  }
+
+  // 图标上传直连 Core 的附件接口：浏览器带着自己的会话把字节交给宿主，
+  // 插件只拿 publicId + createdAt 去 claim（不在插件里存字节，也不加转发路由）。
+  const uploadAttachment = async (file) => {
+    await ensureCsrf()
+    const body = new FormData()
+    body.append('file', file)
+    const headers = { Accept: 'application/json' }
+    const token = readCookie('csrf_')
+    if (token) headers['X-Csrf-Token'] = token
+    const response = await fetch(CORE_API + '/attachments', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers,
+      body
+    })
+    const payload = await response.json().catch(() => ({}))
+    const data = unwrap(payload)
+    if (!response.ok) {
+      throw new Error(text(payload.message) || text(data.reason) || text(data.error) || `HTTP ${response.status}`)
+    }
+    const publicId = text(data.publicId)
+    if (!publicId) throw new Error(t.iconUploadFailed)
+    return {
+      publicId,
+      // claim 的 expectedRevision 必须等于附件当前的 updated_at；上传响应里的
+      // createdAt 与它来自同一条 INSERT 的两个 DEFAULT now()，取值相同。
+      revision: text(data.createdAt),
+      url: text(data.url) || `/media/attachments/${publicId}`
+    }
+  }
+
+  const onIconFileChange = async () => {
+    const file = fields.logoFile && fields.logoFile.files ? fields.logoFile.files[0] : null
+    if (!file) return
+    if (!ICON_TYPES.includes(file.type)) {
+      setIconStatus(t.iconTypeInvalid, 'error')
+      fields.logoFile.value = ''
+      return
+    }
+    if (file.size > ICON_MAX_BYTES) {
+      setIconStatus(t.iconTooLarge('512 KiB'), 'error')
+      fields.logoFile.value = ''
+      return
+    }
+    setIconStatus(t.iconUploading)
+    try {
+      const uploaded = await uploadAttachment(file)
+      iconChoice = {
+        kind: 'attachment',
+        publicId: uploaded.publicId,
+        revision: uploaded.revision,
+        previewURL: uploaded.url
+      }
+      // 互斥：选了上传就清空地址输入，并收起 URL 区。
+      fields.logoUrl.value = ''
+      if (logoUrlBlock) logoUrlBlock.open = false
+      applyIconState(t.iconUploaded)
+    } catch (error) {
+      setIconStatus(error.message || t.iconUploadFailed, 'error')
+    } finally {
+      if (fields.logoFile) fields.logoFile.value = ''
+    }
+  }
+
+  // 地址输入是「次选」入口：一旦填了地址就丢掉待 claim 的上传（互斥）。
+  const onLogoURLInput = () => {
+    const value = fields.logoUrl.value.trim()
+    if (value) {
+      iconChoice = { kind: 'url', publicId: '', revision: '', previewURL: value }
+      applyIconState('')
+      return
+    }
+    if (iconChoice.kind === 'url') {
+      iconChoice = { kind: 'generated', publicId: '', revision: '', previewURL: '' }
+      applyIconState('')
+    }
+  }
+
+  const onClearIcon = () => {
+    iconChoice = { kind: 'generated', publicId: '', revision: '', previewURL: '' }
+    fields.logoUrl.value = ''
+    if (fields.logoFile) fields.logoFile.value = ''
+    applyIconState('')
+  }
+
+  // 打开表单时把图标状态复位到「未改动」，预览沿用服务端下发的描述符地址。
+  const resetIconChoice = (client) => {
+    iconUploadBlocked = false
+    iconChoice = {
+      kind: 'keep',
+      publicId: '',
+      revision: '',
+      previewURL: text(client && client.icon && client.icon.url)
+    }
+    if (logoUrlBlock) logoUrlBlock.open = Boolean(client && client.logoUrl && !client.attachmentPublicId)
+    renderLogoPreview()
+    if (iconClear) iconClear.hidden = !iconChoice.previewURL
+    setIconStatus(client && client.attachmentPublicId ? t.iconUploadedSaved : '')
+  }
+
   const renderRows = () => {
     rowsEl.textContent = ''
     for (const client of clients) {
       const row = document.createElement('tr')
 
       const appCell = cell(t.colApp)
+      const appHead = document.createElement('div')
+      appHead.className = 'sfo-app__head'
+      appHead.append(renderIcon(client.icon, text(client.clientId), text(client.name), client.clientType))
       const name = document.createElement('p')
       name.className = 'sfo-app__name'
       name.textContent = text(client.name)
+      appHead.append(name)
       const idLine = document.createElement('div')
       idLine.className = 'sfo-app__id'
       const fullClientId = text(client.clientId)
-      idLine.append(mono(shortenId(fullClientId), fullClientId))
+      // client_id 前面必须有可见文字：以前是一串无标签的字符串，让人误以为是密钥。
+      // 标签独占一行（flex-basis:100%），值再换行显示，窄单元格里也不会挤成一团。
+      const idLabel = document.createElement('span')
+      idLabel.className = 'sfo-app__idlabel'
+      idLabel.title = t.idHint
+      idLabel.append(document.createTextNode(t.idLabel))
+      const idTag = document.createElement('span')
+      idTag.className = 'sfo-tag sfo-tag--public'
+      idTag.textContent = t.idTagPublic
+      idTag.title = t.idHint
+      idLabel.append(idTag)
+      idLine.append(idLabel, idChip(fullClientId))
       idLine.append(copyButton(text(client.clientId), t.copy))
       const description = document.createElement('p')
       description.className = 'sfo-app__desc'
       description.textContent = text(client.description)
-      appCell.append(name, idLine)
+      appCell.append(appHead, idLine)
       if (description.textContent) appCell.append(description)
       row.append(appCell)
 
@@ -578,8 +1120,14 @@ export function mount(target, bridge) {
       fields.description.value = text(client.description)
       fields.clientType.value = client.clientType === 'public' ? 'public' : 'confidential'
       fields.redirectUris.value = (client.redirectUris || []).join('\n')
-      fields.scopes.value = (client.scopes || []).join(' ')
     }
+    fields.logoUrl.value = text(client && client.logoUrl)
+    resetIconChoice(client)
+    const clientScopes = client ? (client.scopes || []).map(text) : []
+    pickedScopes = new Set(clientScopes.filter((scope) => allowedScopes.includes(scope)))
+    pickedScopes.add('profile')
+    customScopes = clientScopes.filter((scope) => !allowedScopes.includes(scope))
+    renderScopeChips()
     modalSubmit.className = 'sfo-btn sfo-btn--primary'
     showView('form')
     openModal(trigger)
@@ -596,21 +1144,37 @@ export function mount(target, bridge) {
     openModal(trigger)
   }
 
+  // 一次性凭据弹窗：每一行都带中文名 + 公开/保密标签 + 一句话说明，
+  // 避免把 client_id 误当成需要保密的密钥（两者不是公私钥对）。
   const openSecret = (clientId, clientSecret, title) => {
     modalTitle.textContent = title || t.secretTitle
     secretPairs.textContent = ''
     const entries = [
-      ['client_id', clientId],
-      ['client_secret', clientSecret]
+      [t.secretLabelId, t.idTagPublic, 'sfo-tag--public', clientId, t.secretIdNote],
+      [t.secretLabelKey, t.secretTagPrivate, 'sfo-tag--private', clientSecret, t.secretKeyNote]
     ]
-    for (const [key, value] of entries) {
+    for (const [label, tagText, tagClass, value, note] of entries) {
+      const row = document.createElement('div')
+      row.className = 'sfo-pair'
       const dt = document.createElement('dt')
-      dt.textContent = key
+      dt.append(document.createTextNode(label))
+      const tag = document.createElement('span')
+      tag.className = `sfo-tag ${tagClass}`
+      tag.textContent = tagText
+      dt.append(tag)
       const dd = document.createElement('dd')
       dd.append(mono(value))
       dd.append(copyButton(value, t.copy))
-      secretPairs.append(dt, dd)
+      const hint = document.createElement('p')
+      hint.className = 'sfo-pair__note'
+      hint.textContent = note
+      row.append(dt, dd, hint)
+      secretPairs.append(row)
     }
+    const summary = document.createElement('div')
+    summary.className = 'sfo-pair__note sfo-pair__note--summary'
+    summary.textContent = t.secretPairsNote
+    secretPairs.append(summary)
     showView('secret')
     setBusy(false)
     window.requestAnimationFrame(() => modalSubmit.focus())
@@ -622,6 +1186,8 @@ export function mount(target, bridge) {
     try {
       const data = await api('/clients')
       clients = Array.isArray(data.clients) ? data.clients : []
+      allowedScopes = Array.isArray(data.allowedScopes) ? data.allowedScopes.map(text).filter(Boolean) : []
+      scopeCatalog = Array.isArray(data.scopeCatalog) ? data.scopeCatalog : []
       const source = text(data.source) || 'database'
       hintEl.textContent = t.sectionHint(clients.length, source)
       renderRows()
@@ -648,14 +1214,31 @@ export function mount(target, bridge) {
     for (const uri of redirectUris) {
       if (!validRedirectURI(uri)) return { error: t.redirectInvalid(uri) }
     }
-    const scopes = fields.scopes.value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean)
     const payload = {
       name,
       description: fields.description.value.trim(),
       clientType: fields.clientType.value,
       redirectUris
     }
-    if (scopes.length > 0) payload.scopes = scopes
+    // 上传与 URL 互斥：一次保存只提交一个来源；「没动图标」则两个字段都不提交，
+    // 服务端据此保留原图（否则每次编辑都会重 claim 一次并撞修订号）。
+    if (iconChoice.kind === 'attachment') {
+      payload.attachmentPublicId = iconChoice.publicId
+      payload.attachmentRevision = iconChoice.revision
+      payload.logoUrl = ''
+    } else if (iconChoice.kind === 'url') {
+      const logoUrl = fields.logoUrl.value.trim()
+      if (!validLogoURL(logoUrl)) return { error: t.logoInvalid(logoUrl) }
+      payload.logoUrl = logoUrl
+      payload.attachmentPublicId = ''
+    } else if (iconChoice.kind === 'generated') {
+      payload.logoUrl = ''
+      payload.attachmentPublicId = ''
+    }
+    // profile 恒在（必选）：提交值 = profile + 勾选的额外范围。
+    const picked = allowedScopes.filter((scope) => pickedScopes.has(scope))
+    if (!picked.includes('profile')) picked.unshift('profile')
+    payload.scopes = picked
     return { payload }
   }
 
@@ -667,9 +1250,11 @@ export function mount(target, bridge) {
       return
     }
     setBusy(true)
+    // Host 只在带 Idempotency-Key 时才签发 claim/release 的 actor 委派。
+    const idempotencyKey = newIdempotencyKey()
     try {
       if (mode === 'create') {
-        const created = await api('/clients/create', { method: 'POST', body: payload })
+        const created = await api('/clients/create', { method: 'POST', body: payload, idempotencyKey })
         toast(t.created, payload.name)
         await load()
         if (created && created.clientSecret) {
@@ -680,7 +1265,8 @@ export function mount(target, bridge) {
       } else {
         const updated = await api('/clients/update', {
           method: 'POST',
-          body: { ...payload, clientId: text(activeClient && activeClient.clientId) }
+          body: { ...payload, clientId: text(activeClient && activeClient.clientId) },
+          idempotencyKey
         })
         toast(t.saved, payload.name)
         await load()
@@ -691,8 +1277,11 @@ export function mount(target, bridge) {
         }
       }
     } catch (requestError) {
-      formError.textContent = requestError.message
-      formError.hidden = false
+      // 图标类失败已经在字段旁就地说明（并展开 URL 入口），不必再重复一条表单错误。
+      if (!handleIconFailure(requestError)) {
+        formError.textContent = requestError.message
+        formError.hidden = false
+      }
       setBusy(false)
     }
   }
@@ -711,7 +1300,7 @@ export function mount(target, bridge) {
           closeModal()
         }
       } else {
-        await api('/clients/delete', { method: 'POST', body: { clientId } })
+        await api('/clients/delete', { method: 'POST', body: { clientId }, idempotencyKey: newIdempotencyKey() })
         toast(t.deleted, clientId)
         await load()
         closeModal()
@@ -749,8 +1338,13 @@ export function mount(target, bridge) {
 
   const onTypeChange = () => {
     typeHint.textContent = fields.clientType.value === 'public' ? t.typePublicHint : t.typeConfidentialHint
+    renderLogoPreview()
   }
   fields.clientType.addEventListener('change', onTypeChange)
+  fields.logoUrl.addEventListener('input', onLogoURLInput)
+  if (fields.logoFile) fields.logoFile.addEventListener('change', onIconFileChange)
+  if (iconClear) iconClear.addEventListener('click', onClearIcon)
+  fields.name.addEventListener('input', renderLogoPreview)
 
   const onKeydown = (event) => {
     if (event.key === 'Escape' && !modal.hidden) {
@@ -772,6 +1366,10 @@ export function mount(target, bridge) {
     root.removeEventListener('click', onRootClick)
     formEl.removeEventListener('submit', onFormSubmit)
     fields.clientType.removeEventListener('change', onTypeChange)
+    fields.logoUrl.removeEventListener('input', onLogoURLInput)
+    if (fields.logoFile) fields.logoFile.removeEventListener('change', onIconFileChange)
+    if (iconClear) iconClear.removeEventListener('click', onClearIcon)
+    fields.name.removeEventListener('input', renderLogoPreview)
     modalSubmit.removeEventListener('click', onModalSubmit)
     document.removeEventListener('keydown', onKeydown)
     window.removeEventListener('sforum:auth-failed', onAuthFailed)
