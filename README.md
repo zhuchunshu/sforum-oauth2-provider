@@ -3,6 +3,8 @@
 [![ci](https://github.com/zhuchunshu/sforum-oauth2-provider/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuchunshu/sforum-oauth2-provider/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/zhuchunshu/sforum-oauth2-provider)](https://github.com/zhuchunshu/sforum-oauth2-provider/releases)
 
+![OAuth2 授权服务 社交卡](./plugins/sforum-oauth2-provider/brand/social-preview.png)
+
 让 **SForum 作为 OAuth2 授权服务器**（类似 GitHub OAuth Apps）：第三方应用通过授权码 + PKCE
 拿到访问令牌，再调用 userinfo 读取用户资料。账号、密码与会话始终由 SForum 持有，插件不接触用户凭据。
 

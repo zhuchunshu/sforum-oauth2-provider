@@ -27,6 +27,26 @@ sforum-oauth2-provider/
 宿主 `DigestTree` **禁止符号链接**（根目录或树内任何 symlink 都返回 `ErrSymlink`），
 所以不要用软链把仓库挂到别处，也不要保留第二份副本。
 
+## 品牌资产（必须）
+
+包内 `brand/` 是产品身份的一部分，不是可选项：
+
+| 文件 | 尺寸 | 上限 |
+| --- | --- | --- |
+| `brand/icon.svg` | `viewBox="0 0 512 512"`，自包含 | 40 KiB |
+| `brand/icon.png` | 512×512 PNG | 120 KiB |
+| `brand/social-preview.png` | 1280×640 PNG（中文主卡） | 600 KiB |
+
+- 生成：`node ~/Code/github/SForum/scripts/brand/generate.mjs --only <包目录名>`；
+  先加 `--draft /tmp/x --sheet /tmp/x` 看样张。文案与字形改
+  `~/Code/github/SForum/scripts/brand/spec.json`，不手改 PNG。
+- 校验：`scripts/prepare-package.sh` 已含 `extension brand check`；单独跑
+  `cd "$SFORUM_DIR/apps/api" && go run ./cmd/sforum extension brand check "$PKG"`。
+- 规则（模板参数、错误码、GitHub 手动上传步骤）：
+  `~/Code/github/SForum/docs/extensions/brand-assets.md`。
+- 品牌文件不进 `packageFiles`，但属于包树：改图会改变包摘要，走正常升级流程；
+  不要为了消掉摘要漂移去改版本号。
+
 ## 开发闭环
 
 ```bash
