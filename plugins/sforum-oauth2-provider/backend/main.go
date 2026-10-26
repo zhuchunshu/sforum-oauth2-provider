@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	pluginv2 "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2"
+	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
 )
 
 // SForum OAuth2 Provider 插件入口：SForum 作为 OAuth2 授权服务器。

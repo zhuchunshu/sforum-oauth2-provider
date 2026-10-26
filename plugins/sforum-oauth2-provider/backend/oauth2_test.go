@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	pluginv2 "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2"
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
-	protocolwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
+	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	protocolwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
 )
 
 func testRequest(routeID string, values map[string]any) *pluginwire.RouteRequest {

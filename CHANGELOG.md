@@ -373,7 +373,7 @@
 - 页面挂载点校验：缺少模板挂载点时现在显示可见错误，运行时统一用 `.sfp-hidden` 类切换面板，
   并补写 `data-slot="title"` 以适配宿主全局标题样式约束。
 
-[1.0.0]: https://github.com/zhuchunshu/sforum-oauth2-provider/releases/tag/v1.0.0
+[1.0.0]: https://github.com/keeptrue/sforum-oauth2-provider/releases/tag/v1.0.0
 
 ## [1.1.1] - 2026-10-18
 

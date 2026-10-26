@@ -1,11 +1,12 @@
-module github.com/zhuchunshu/sforum-oauth2-provider/backend
+module github.com/keeptrue/sforum-oauth2-provider/backend
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/keeptrue/sforum/apps/api v0.0.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
-	github.com/zhuchunshu/sforum/apps/api v0.0.0
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -27,7 +28,6 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.2 // indirect
 )
 
 // SForum 的 apps/api 尚未作为 Go module 发布（tag 形如 v3.x，不是 apps/api/vX），
@@ -38,4 +38,4 @@ require (
 //   Code/github/SForum                                       ← 框架检出
 //
 // CI 会用 `go mod edit -replace` 覆盖为它自己的检出路径（见 .github/workflows）。
-replace github.com/zhuchunshu/sforum/apps/api => ../../../../SForum/apps/api
+replace github.com/keeptrue/sforum/apps/api => ../../../../SForum/apps/api

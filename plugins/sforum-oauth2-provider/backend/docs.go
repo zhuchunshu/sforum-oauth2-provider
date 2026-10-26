@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 // 接入说明页的数据端点（GET /api/oauth/docs）。

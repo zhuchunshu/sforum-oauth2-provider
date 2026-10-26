@@ -12,14 +12,14 @@ on:
       sforum_ref:
         description: 构建所使用的 SForum 引用（tag / 分支 / commit）
         required: false
-        default: feat/extension-host-v2-surfaces
+        default: main
 
 permissions:
   contents: write
 
 env:
-  SFORUM_REPOSITORY: zhuchunshu/SForum
-  SFORUM_REF: ${{ github.event.inputs.sforum_ref || 'feat/extension-host-v2-surfaces' }}
+  SFORUM_REPOSITORY: keeptrue/SForum
+  SFORUM_REF: ${{ github.event.inputs.sforum_ref || 'main' }}
   PACKAGE_DIR: plugins/sforum-oauth2-provider
   PACKAGE_SLUG: sforum-oauth2-provider
 
@@ -45,7 +45,7 @@ jobs:
 
       - name: Point SDK replace at the checked-out framework
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
-        run: go mod edit -replace github.com/zhuchunshu/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
+        run: go mod edit -replace github.com/keeptrue/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
       - name: Backend vet and unit tests
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
@@ -103,7 +103,7 @@ jobs:
 
       - name: Point SDK replace at the checked-out framework
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
-        run: go mod edit -replace github.com/zhuchunshu/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
+        run: go mod edit -replace github.com/keeptrue/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
       - name: Build ${{ matrix.goos }}/${{ matrix.goarch }} package
         id: package

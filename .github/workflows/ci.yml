@@ -14,11 +14,11 @@ permissions:
   contents: read
 
 env:
-  SFORUM_REPOSITORY: zhuchunshu/SForum
-  # 本版本依赖尚未合入宿主 main 的扩展宿主面：SelfEmailQueryRequest（email 快照）、
-  # attachments.extension.claim/release（图标上传）、admin.pages[].group（侧栏分组）、
-  # stream 路由登录重定向。宿主合入 main 后改回 main，或钉到对应 tag。
-  SFORUM_REF: feat/extension-host-v2-surfaces
+  SFORUM_REPOSITORY: keeptrue/SForum
+  # 插件依赖的扩展宿主面（SelfEmailQueryRequest 邮箱快照、attachments.extension.claim/release
+  # 图标上传、admin.pages[].group 侧栏分组、stream 路由登录重定向）已合入宿主 main，
+  # 默认跟随 main；需要锁定时把下面的 SFORUM_REF 改成 tag 或 commit。
+  SFORUM_REF: main
   PACKAGE_DIR: plugins/sforum-oauth2-provider
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
 
       - name: Point SDK replace at the checked-out framework
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
-        run: go mod edit -replace github.com/zhuchunshu/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
+        run: go mod edit -replace github.com/keeptrue/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
       - name: Backend vet and unit tests
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend

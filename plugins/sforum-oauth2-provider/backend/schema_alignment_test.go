@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
-	protocolwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	protocolwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
 )
 
 // Host 会对每个 HTTP 路由响应做 JSON Schema 校验，所以 handler 的输出必须与

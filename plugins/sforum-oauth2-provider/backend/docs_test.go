@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 // 接入说明页是「宿主外壳 + 插件正文」：页面由 theme.json 声明为 view=component，

@@ -59,10 +59,10 @@
   ],
   "author": {
     "name": "SForum",
-    "url": "https://github.com/zhuchunshu/sforum"
+    "url": "https://github.com/keeptrue/sforum"
   },
   "backend": {
-    "digest": "b46cf50ef47b2354a46168c0032822db3f9f615311595c9269cdbc74e25fa4c5",
+    "digest": "98c689abccc75a17458655761451200945feec674ec78f9782224699c7ba9cc8",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -179,7 +179,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "b46cf50ef47b2354a46168c0032822db3f9f615311595c9269cdbc74e25fa4c5",
+      "digest": "98c689abccc75a17458655761451200945feec674ec78f9782224699c7ba9cc8",
       "id": "sforum.oauth2-provider.file.backend",
       "kind": "executable",
       "path": "backend/plugin"
@@ -727,6 +727,6 @@
     }
   ],
   "type": "plugin",
-  "url": "https://github.com/zhuchunshu/sforum",
+  "url": "https://github.com/keeptrue/sforum",
   "version": "1.6.0"
 }

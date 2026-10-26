@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 // 令牌端点：授权码兑换（含 PKCE 复核）与刷新令牌轮换。

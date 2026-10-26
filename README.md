@@ -1,7 +1,7 @@
 # SForum OAuth2 Provider
 
-[![ci](https://github.com/zhuchunshu/sforum-oauth2-provider/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuchunshu/sforum-oauth2-provider/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/zhuchunshu/sforum-oauth2-provider)](https://github.com/zhuchunshu/sforum-oauth2-provider/releases)
+[![ci](https://github.com/keeptrue/sforum-oauth2-provider/actions/workflows/ci.yml/badge.svg)](https://github.com/keeptrue/sforum-oauth2-provider/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/keeptrue/sforum-oauth2-provider)](https://github.com/keeptrue/sforum-oauth2-provider/releases)
 
 ![OAuth2 授权服务 社交卡](./plugins/sforum-oauth2-provider/brand/social-preview.png)
 
@@ -20,7 +20,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/zhuchunshu/sforum-oauth2-provider/releases) 下载与服务器平台匹配的压缩包
+1. 从 [Releases](https://github.com/keeptrue/sforum-oauth2-provider/releases) 下载与服务器平台匹配的压缩包
    （`linux_amd64` / `linux_arm64` / `darwin_arm64` / `darwin_amd64`），校验 `sha256sum -c SHA256SUMS`。
 2. 装到 SForum（两种方式任选）：
    - **上传**：后台「插件管理 → 安装插件」选择 zip；
@@ -376,11 +376,10 @@ cd plugins/sforum-oauth2-provider/backend && go vet ./... && go test ./...
 发布前请把 `sforum.extension.json` 的 `version` 提到与标签一致（例如 `1.0.1` ↔ `v1.0.1`）。
 Windows 未列入矩阵：宿主按清单 `backend/entry` 直接执行、不做 `.exe` 归一化，未经实机验证前不发布。
 
-CI 与 Release 都通过 `SFORUM_REF` 检出宿主框架。本版依赖宿主尚未合入 `main` 的扩展宿主面
-（`SelfEmailQueryRequest`、`attachments.extension.claim/release`、`admin.pages[].group`、
-stream 路由登录重定向），因此默认指向 `zhuchunshu/SForum` 的
-`feat/extension-host-v2-surfaces` 分支；这些提交合入 `main` 后，把 `.github/workflows/*.yml`
-里的 `SFORUM_REF` 改回 `main` 或钉到对应 tag/commit 即可。
+CI 与 Release 都通过 `SFORUM_REF` 检出宿主框架，默认跟随宿主 `keeptrue/SForum` 的 `main`。本版依赖的
+扩展宿主面（`SelfEmailQueryRequest`、`attachments.extension.claim/release`、`admin.pages[].group`、
+stream 路由登录重定向）均已合入 `main`。需要锁定时，在 release 工作流的 `workflow_dispatch`
+里填 `sforum_ref`（tag 或 commit），或直接改 `.github/workflows/*.yml` 里的 `SFORUM_REF`。
 
 ## 数据与生命周期
 

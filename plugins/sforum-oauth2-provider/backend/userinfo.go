@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 // 用户资料端点。访问令牌通过 access_token 查询参数交付：Host 的插件路由在

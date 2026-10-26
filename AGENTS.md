@@ -7,7 +7,7 @@
 SForum 的 OAuth2 授权服务器插件（SForum 当 provider，类似 GitHub OAuth Apps）：
 第三方应用用授权码 + PKCE 取令牌，再调 userinfo 读取用户资料。账号与会话始终由 SForum 持有。
 
-- 仓库：`~/Code/github/sforum-oauth2-provider`（独立仓库，GitHub `zhuchunshu/sforum-oauth2-provider`，MIT）
+- 仓库：`~/Code/github/sforum-oauth2-provider`（独立仓库，GitHub `keeptrue/sforum-oauth2-provider`，MIT）
 - 框架检出：`~/Code/github/SForum`（**同级目录**，插件通过本地 replace 解析宿主 SDK）
 - 扩展 id：`sforum.oauth2-provider`；版本在 `plugins/sforum-oauth2-provider/sforum.extension.json`
 

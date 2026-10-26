@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 // 应用管理：管理员可管理全部应用（sforum.oauth2-provider.manage_clients），

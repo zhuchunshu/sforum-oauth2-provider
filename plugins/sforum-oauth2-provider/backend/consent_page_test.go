@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	pluginwire "github.com/zhuchunshu/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
 )
 
 func TestConsentPageEscapesRequestToken(t *testing.T) {
